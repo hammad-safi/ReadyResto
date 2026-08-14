@@ -170,7 +170,6 @@ export default function Kitchen() {
   const sortedKitchenOrders = [...allKitchenOrders].sort((a, b) => orderSortKey(a) - orderSortKey(b));
 
   // Station + search filtering
-  const kitchenOrders = useMemo(() => {
   const filteredOrders = useMemo(() => {
     return sortedKitchenOrders.filter((o) => {
       const search = searchQuery.toLowerCase();
@@ -326,7 +325,7 @@ export default function Kitchen() {
       {/* Main Kanban Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
         {COLUMNS.map((col) => {
-          const colOrders = kitchenOrders.filter((o) => o.kitchen_status === col.key);
+          const colOrders = filteredOrders.filter((o) => o.kitchen_status === col.key);
           return (
             <div key={col.key} className="flex flex-col rounded-2xl bg-canvas-50 p-3 border border-canvas-200 min-h-[750px]">
               {/* Column Header */}
