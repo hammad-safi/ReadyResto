@@ -5,6 +5,7 @@ import {
 import Button from "../ui/Button";
 import Modal from "../ui/Modal";
 import api from "../../api/client";
+import { playWhatsAppSound } from "../../utils/soundHelper";
 
 const PAYMENT_METHODS = [
   { key: "Cash", icon: Banknote },
@@ -123,6 +124,30 @@ export default function CheckoutModal({
     });
   };
 
+  // Sound: small bell using Web Audio API
+  const audioCtxRef = useRef(null);
+  const playBell = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ac = audioCtxRef.current || new AudioCtx();
+      audioCtxRef.current = ac;
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(880, ac.currentTime);
+      g.gain.setValueAtTime(0.0001, ac.currentTime);
+      o.connect(g);
+      g.connect(ac.destination);
+      o.start();
+      g.gain.exponentialRampToValueAtTime(0.16, ac.currentTime + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.28);
+      o.stop(ac.currentTime + 0.29);
+    } catch (err) {
+      // ignore audio errors
+    }
+  };
+
   const toggleSplitMode = () => {
     if (!splitMode) {
       const half = Math.round(targetPayment / 2);
@@ -191,7 +216,17 @@ export default function CheckoutModal({
           </Button>
           <Button
             variant="primary"
-            onClick={handleConfirm}
+            onClick={(e) => {
+              playWhatsAppSound();
+              handleConfirm(e);
+            }}
+            onPointerDown={(e) => {
+              // immediate feedback on press
+              playWhatsAppSound();
+            }}
+            onPointerUp={(e) => {
+              // keep default click handler to confirm
+            }}
             disabled={paymentConfirmDisabled}
             className="bg-paprika-500 hover:bg-paprika-600 text-white text-xs 2xl:text-sm font-bold shadow-md shadow-paprika-500/20 disabled:opacity-50"
           >

@@ -8,6 +8,8 @@ import Modal from "../components/ui/Modal";
 import Button from "../components/ui/Button";
 import { printKOT } from "../utils/export";
 
+import useStickyState from "../hooks/useStickyState";
+
 const COLUMNS = [
   { key: "new",       label: "New Orders",    tone: "border-l-paprika-500",  badgeBg: "bg-paprika-600 text-white",  headerBg: "bg-paprika-500/10 border-paprika-500/20"  },
   { key: "preparing", label: "Preparing",      tone: "border-l-amber-500",   badgeBg: "bg-amber-600 text-white",   headerBg: "bg-amber-500/10 border-amber-500/20"    },
@@ -56,20 +58,21 @@ const playCancelChime = () => {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
-    const playNote = (freq, startTime, duration) => {
+    const playNote = (freq, type, startTime, duration, vol) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = "sawtooth";
+      osc.type = type;
       osc.frequency.setValueAtTime(freq, ctx.currentTime + startTime);
-      gain.gain.setValueAtTime(0.2, ctx.currentTime + startTime);
+      gain.gain.setValueAtTime(vol, ctx.currentTime + startTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startTime + duration);
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start(ctx.currentTime + startTime);
       osc.stop(ctx.currentTime + startTime + duration);
     };
-    playNote(250, 0, 0.4);
-    playNote(200, 0.3, 0.6);
+    // A noticeable but high-quality double low tone
+    playNote(250, "square", 0, 0.3, 0.05);
+    playNote(200, "square", 0.2, 0.4, 0.05);
   } catch (e) {
     console.warn("Audio not supported", e);
   }
@@ -79,13 +82,13 @@ export default function Kitchen() {
   const { user } = useAuth();
   const [orders,        setOrders]        = useState([]);
   const [items,         setItems]         = useState([]);
-  const [stationFilter, setStationFilter] = useState("All");
-  const [soundEnabled,  setSoundEnabled]  = useState(false);
+  const [stationFilter, setStationFilter] = useStickyState("All", "kitchen_stationFilter");
+  const [soundEnabled,  setSoundEnabled]  = useStickyState(false, "kitchen_soundEnabled");
   const [cancellingId,  setCancellingId]  = useState(null);
-  const [searchQuery,   setSearchQuery]   = useState("");
+  const [searchQuery,   setSearchQuery]   = useStickyState("", "kitchen_searchQuery");
 
   const [selectedTickets, setSelectedTickets] = useState([]);
-  const prevOrderCountRef = useRef(0);
+  const prevNewOrderIdsRef = useRef(new Set());
   const prevOrdersRef = useRef([]);
 
   const load = async () => {
@@ -96,15 +99,21 @@ export default function Kitchen() {
       ]);
       
       const activeNew = fetchedOrders.filter((o) => o.kitchen_status === "new" && o.status !== "cancelled");
+      const currentNewIds = new Set(activeNew.map(o => o.id));
+      
       let playNew = false;
       let playCancel = false;
 
       if (soundEnabled) {
-        if (prevOrderCountRef.current < activeNew.length) {
-          playNew = true;
+        // 1. Detect truly new orders by comparing ID sets
+        for (const id of currentNewIds) {
+          if (!prevNewOrderIdsRef.current.has(id)) {
+            playNew = true;
+            break;
+          }
         }
         
-        // Detect cancellations
+        // 2. Detect cancellations by comparing previous raw orders state
         const prevOrders = prevOrdersRef.current;
         for (const prev of prevOrders) {
           if (prev.status !== "cancelled") {
@@ -123,7 +132,7 @@ export default function Kitchen() {
         }
       }
       
-      prevOrderCountRef.current = activeNew.length;
+      prevNewOrderIdsRef.current = currentNewIds;
       prevOrdersRef.current = fetchedOrders || [];
       setOrders(fetchedOrders || []);
       setItems(fetchedItems  || []);
@@ -141,14 +150,20 @@ export default function Kitchen() {
   const itemsFor = (orderId) => items.filter((i) => i.order_id === orderId);
 
   const moveNext = async (order) => {
-    const next = KITCHEN_NEXT[order.kitchen_status];
-    if (next) {
-      await api.updateKitchenStatus(order.id, next);
+    let nextStatus = "";
+    if (order.kitchen_status === "new") nextStatus = "preparing";
+    else if (order.kitchen_status === "preparing") nextStatus = "ready";
+    else if (order.kitchen_status === "ready") nextStatus = "served";
+    else if (order.kitchen_status === "served") nextStatus = "completed";
+    
+    if (nextStatus) {
+      await api.updateKitchenStatus(order.id, nextStatus);
       load();
     }
   };
 
   const cancelKitchen = async (orderId) => {
+    if (soundEnabled) playCancelChime();
     await api.updateKitchenStatus(orderId, "cancelled");
     await api.updateOrderStatus(orderId, "cancelled");
     setCancellingId(null);
@@ -194,7 +209,11 @@ export default function Kitchen() {
     const newOrderIds = filteredOrders
       .filter((o) => o.kitchen_status === "new" && o.status !== "cancelled")
       .map((o) => o.id);
-    setSelectedTickets(newOrderIds);
+    if (selectedTickets.length === newOrderIds.length && newOrderIds.length > 0) {
+      setSelectedTickets([]);
+    } else {
+      setSelectedTickets(newOrderIds);
+    }
   };
 
   const elapsedMinutes = (order) => {
@@ -260,6 +279,7 @@ export default function Kitchen() {
               onClick={() => {
                 const next = !soundEnabled;
                 setSoundEnabled(next);
+                window.localStorage.setItem("kitchen_soundEnabled", JSON.stringify(next));
                 if (next) playKitchenChime();
               }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all shadow-sm ${
@@ -348,7 +368,7 @@ export default function Kitchen() {
                   // For station view: show only matching items (but still show the ticket)
                   const visibleItems = stationFilter === "All"
                     ? orderItems
-                    : orderItems.filter((it) => it.station === stationFilter || !it.station);
+                    : orderItems.filter((it) => it.station === stationFilter);
 
                   return (
                     <div
@@ -474,14 +494,12 @@ export default function Kitchen() {
                           </div>
                         ) : (
                           <div className="flex gap-2">
-                            {col.key !== "served" && (
-                              <button
-                                onClick={() => moveNext(order)}
-                                className="flex-1 text-xs font-bold py-2.5 px-3 rounded-lg bg-paprika-600 text-white hover:bg-paprika-500 hover:border-paprika-400 active:scale-[0.99] transition-all shadow-md shadow-paprika-500/20 flex items-center justify-center gap-1.5 border border-paprika-500"
-                              >
-                                {KITCHEN_LABELS[col.key]} <Check size={13} />
-                              </button>
-                            )}
+                            <button
+                              onClick={() => moveNext(order)}
+                              className="flex-1 text-xs font-bold py-2.5 px-3 rounded-lg bg-paprika-600 text-white hover:bg-paprika-500 hover:border-paprika-400 active:scale-[0.99] transition-all shadow-md shadow-paprika-500/20 flex items-center justify-center gap-1.5 border border-paprika-500"
+                            >
+                              {KITCHEN_LABELS[col.key]} <Check size={13} />
+                            </button>
                             <button
                               onClick={() => setCancellingId(order.id)}
                               className="px-3 py-2.5 rounded-lg bg-white border border-canvas-200 text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center tooltip-trigger"

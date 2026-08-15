@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Pencil, Trash2, Search, Filter, RotateCcw, Printer, RefreshCw } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
+import useStickyState from "../hooks/useStickyState";
 import Button from "../components/ui/Button";
 import Badge, { statusTone } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
@@ -33,14 +34,14 @@ export default function Menu() {
   const [inventory, setInventory] = useState([]);
   const [recipes, setRecipes] = useState([]);
   const [recipeLines, setRecipeLines] = useState([]);
-  const [invSearch, setInvSearch] = useState("");
-  const [category, setCategory] = useState("All");
+  const [invSearch, setInvSearch] = useStickyState("", "menu_invSearch");
+  const [category, setCategory] = useStickyState("All", "menu_category");
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [printModalOpen, setPrintModalOpen] = useState(false);
   const [printItem, setPrintItem] = useState(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useStickyState(emptyForm, "menu_form");
   const [loading, setLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [imageError, setImageError] = useState("");
@@ -49,14 +50,14 @@ export default function Menu() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchParams] = useSearchParams();
   const searchParamVal = searchParams.get("search") || "";
-  const [query, setQuery] = useState(searchParamVal);
+  const [query, setQuery] = useStickyState(searchParamVal, "menu_query");
 
   useEffect(() => {
-    setQuery(searchParamVal);
-  }, [searchParamVal]);
+    if (searchParamVal) setQuery(searchParamVal);
+  }, [searchParamVal, setQuery]);
 
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [stationFilter, setStationFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useStickyState("All", "menu_statusFilter");
+  const [stationFilter, setStationFilter] = useStickyState("All", "menu_stationFilter");
 
   const load = () => {
     setLoading(true);
@@ -351,6 +352,7 @@ export default function Menu() {
       <Modal
         open={addOpen}
         onClose={() => setAddOpen(false)}
+        onSubmit={save}
         title={editing ? "Edit Menu Item" : "Add New Menu Item"}
         width="max-w-2xl"
         footer={
@@ -545,6 +547,7 @@ export default function Menu() {
       <Modal
         open={!!confirmDelete}
         onClose={() => setConfirmDelete(null)}
+        onSubmit={remove}
         title="Delete menu item?"
         footer={
           <>
