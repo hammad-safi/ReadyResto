@@ -25,6 +25,16 @@ const ALLOWED_TABLES = [
   "sales_returns",
   "role_permissions",
   "custom_roles",
+  "purchase_returns",
+  "supplier_payments",
+  "inventory_transactions",
+  "physical_counts",
+  "expiry_batches",
+  "accounts",
+  "journal_entries",
+  "bank_accounts",
+  "customer_payments",
+  "cashier_shifts",
 ];
 
 // Default modules used in permissions matrix
@@ -208,13 +218,18 @@ function openDatabase(userDataPath) {
 
     CREATE TABLE IF NOT EXISTS inventory_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sku TEXT UNIQUE,
       name TEXT NOT NULL,
       category TEXT,
       unit TEXT DEFAULT 'kg',
       stock REAL DEFAULT 0,
+      min_stock REAL DEFAULT 0,
       reorder REAL DEFAULT 0,
       cost REAL DEFAULT 0,
-      status TEXT DEFAULT 'in_stock'
+      supplier TEXT,
+      warehouse TEXT,
+      status TEXT DEFAULT 'in_stock',
+      updated_at TEXT
     );
 
     CREATE TABLE IF NOT EXISTS suppliers (
@@ -231,15 +246,89 @@ function openDatabase(userDataPath) {
       supplier TEXT,
       date TEXT,
       total REAL DEFAULT 0,
-      status TEXT DEFAULT 'draft'
+      status TEXT DEFAULT 'draft',
+      was_received INTEGER DEFAULT 0,
+      received_at TEXT,
+      created_at TEXT,
+      returned_amount REAL DEFAULT 0,
+      invoice_number TEXT,
+      special_note TEXT,
+      payment_term TEXT,
+      payment_details TEXT,
+      amount_paid_on_receive REAL DEFAULT 0,
+      payment_method_on_receive TEXT
     );
 
     CREATE TABLE IF NOT EXISTS purchase_order_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       po_id INTEGER REFERENCES purchase_orders(id) ON DELETE CASCADE,
-      ingredient TEXT,
+      inventory_item_id INTEGER,
+      name TEXT,
+      unit TEXT,
       qty REAL,
-      rate REAL
+      cost REAL,
+      returned_qty REAL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ingredient_id INTEGER REFERENCES inventory_items(id),
+      name TEXT,
+      type TEXT,
+      qty REAL,
+      unit TEXT,
+      warehouse TEXT,
+      batch_number TEXT,
+      reference_number TEXT,
+      date TEXT,
+      reason TEXT,
+      notes TEXT,
+      user TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS physical_counts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT,
+      status TEXT,
+      approved_by TEXT,
+      notes TEXT,
+      items TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS expiry_batches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      batch_number TEXT,
+      supplier TEXT,
+      purchase_date TEXT,
+      expiry_date TEXT,
+      qty REAL,
+      unit TEXT,
+      warehouse TEXT,
+      status TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS purchase_returns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      po_id INTEGER REFERENCES purchase_orders(id) ON DELETE CASCADE,
+      supplier TEXT,
+      total_amount REAL DEFAULT 0,
+      reason TEXT,
+      refund_mode TEXT,
+      items TEXT,
+      time TEXT,
+      created_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS supplier_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      supplier_id INTEGER,
+      supplier_name TEXT,
+      amount REAL DEFAULT 0,
+      payment_method TEXT,
+      notes TEXT,
+      date TEXT,
+      created_at TEXT
     );
 
     CREATE TABLE IF NOT EXISTS customers (
@@ -371,6 +460,76 @@ function openDatabase(userDataPath) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT UNIQUE NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      parent_code TEXT,
+      is_system INTEGER DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      description TEXT,
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS journal_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      reference_type TEXT,
+      reference_id TEXT,
+      account_code TEXT NOT NULL,
+      account_name TEXT,
+      debit REAL DEFAULT 0,
+      credit REAL DEFAULT 0,
+      description TEXT,
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS bank_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      bank_name TEXT,
+      account_number TEXT,
+      account_code TEXT,
+      balance REAL DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS customer_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER,
+      customer_name TEXT,
+      amount REAL DEFAULT 0,
+      payment_method TEXT,
+      bank_account_id INTEGER,
+      notes TEXT,
+      date TEXT,
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS cashier_shifts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      cashier_id INTEGER,
+      cashier_name TEXT,
+      opened_at TEXT,
+      closed_at TEXT,
+      opening_cash REAL DEFAULT 0,
+      expected_cash REAL DEFAULT 0,
+      actual_cash REAL DEFAULT 0,
+      variance REAL DEFAULT 0,
+      cash_sales REAL DEFAULT 0,
+      card_sales REAL DEFAULT 0,
+      online_sales REAL DEFAULT 0,
+      total_sales REAL DEFAULT 0,
+      cash_expenses REAL DEFAULT 0,
+      cash_supplier_payments REAL DEFAULT 0,
+      status TEXT DEFAULT 'open',
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
   `);
 
   migrate(db);
@@ -417,6 +576,59 @@ function migrate(db) {
 
   // Audit log device column
   try { db.exec("ALTER TABLE audit_log ADD COLUMN ip_device TEXT"); } catch { /* exists */ }
+
+  // Purchase Order new columns
+  const newPOColumns = [
+    "was_received INTEGER DEFAULT 0",
+    "received_at TEXT",
+    "created_at TEXT",
+    "returned_amount REAL DEFAULT 0"
+  ];
+  for (const col of newPOColumns) {
+    try { db.exec(`ALTER TABLE purchase_orders ADD COLUMN ${col}`); } catch { /* exists */ }
+  }
+
+  // Purchase Order Item new columns
+  const newPOItemColumns = [
+    "inventory_item_id INTEGER",
+    "name TEXT",
+    "unit TEXT",
+    "cost REAL",
+    "returned_qty REAL DEFAULT 0"
+  ];
+  for (const col of newPOItemColumns) {
+    try { db.exec(`ALTER TABLE purchase_order_items ADD COLUMN ${col}`); } catch { /* exists */ }
+  }
+
+  // Inventory items new columns
+  const newInventoryColumns = [
+    "sku TEXT UNIQUE",
+    "min_stock REAL DEFAULT 0",
+    "supplier TEXT",
+    "warehouse TEXT",
+    "updated_at TEXT"
+  ];
+  for (const col of newInventoryColumns) {
+    try { db.exec(`ALTER TABLE inventory_items ADD COLUMN ${col}`); } catch { /* exists */ }
+  }
+
+  // Purchase orders new columns
+  const newPOColumns2 = [
+    "invoice_number TEXT",
+    "special_note TEXT",
+    "payment_term TEXT",
+    "payment_details TEXT",
+    "amount_paid_on_receive REAL DEFAULT 0",
+    "payment_method_on_receive TEXT"
+  ];
+  for (const col of newPOColumns2) {
+    try { db.exec(`ALTER TABLE purchase_orders ADD COLUMN ${col}`); } catch { /* exists */ }
+  }
+
+  try { db.exec("ALTER TABLE menu_items ADD COLUMN tax_rate REAL DEFAULT 16"); } catch { /* exists */ }
+  try { db.exec("ALTER TABLE orders ADD COLUMN shift_id INTEGER"); } catch { /* exists */ }
+  try { db.exec("ALTER TABLE expenses ADD COLUMN payment_account TEXT DEFAULT 'Cash in Drawer'"); } catch { /* exists */ }
+  try { db.exec("ALTER TABLE supplier_payments ADD COLUMN bank_account_id INTEGER"); } catch { /* exists */ }
 
   // Ensure role_permissions and custom_roles tables exist (idempotent via CREATE IF NOT EXISTS above)
   // Seed default permissions if none exist yet
@@ -488,14 +700,28 @@ function seed(db) {
     { name: "Gulab Jamun (2pc)", category: "Desserts", price: 220, cost: 70, status: "available", prep_time: 3, station: "Dessert", image: "🍮" },
   ]);
 
-  insertMany("inventory_items", ["name", "category", "unit", "stock", "reorder", "cost", "status"], [
-    { name: "Chicken Boneless", category: "Meat & Poultry", unit: "kg", stock: 42, reorder: 20, cost: 620, status: "in_stock" },
-    { name: "Chicken Boneless (Frozen)", category: "Meat & Poultry", unit: "kg", stock: 8, reorder: 20, cost: 580, status: "low" },
-    { name: "Mozzarella Cheese", category: "Dairy", unit: "kg", stock: 3.2, reorder: 10, cost: 1450, status: "low" },
-    { name: "Basmati Rice", category: "Dry Goods", unit: "kg", stock: 120, reorder: 40, cost: 320, status: "in_stock" },
-    { name: "Cooking Oil", category: "Dry Goods", unit: "ltr", stock: 14, reorder: 25, cost: 480, status: "low" },
-    { name: "Coriander (Fresh)", category: "Vegetables", unit: "kg", stock: 1.1, reorder: 5, cost: 180, status: "critical" },
-    { name: "Tomatoes", category: "Vegetables", unit: "kg", stock: 0, reorder: 15, cost: 140, status: "critical" },
+  insertMany("inventory_items", ["sku", "name", "category", "unit", "stock", "min_stock", "reorder", "cost", "supplier", "warehouse", "status", "updated_at"], [
+    { sku: "SKU-1001", name: "Chicken Boneless", category: "Meat & Poultry", unit: "kg", stock: 42, min_stock: 10, reorder: 20, cost: 620, supplier: "Al-Madina Meat Suppliers", warehouse: "Main Kitchen Store", status: "in_stock", updated_at: new Date().toISOString() },
+    { sku: "SKU-1002", name: "Chicken Boneless (Frozen)", category: "Meat & Poultry", unit: "kg", stock: 8, min_stock: 10, reorder: 20, cost: 580, supplier: "Al-Madina Meat Suppliers", warehouse: "Cold Storage", status: "low", updated_at: new Date().toISOString() },
+    { sku: "SKU-1003", name: "Mozzarella Cheese", category: "Dairy", unit: "kg", stock: 3.2, min_stock: 5, reorder: 10, cost: 1450, supplier: "Khyber Dairy Co.", warehouse: "Cold Storage", status: "low", updated_at: new Date().toISOString() },
+    { sku: "SKU-1004", name: "Basmati Rice", category: "Dry Goods", unit: "kg", stock: 120, min_stock: 20, reorder: 40, cost: 320, supplier: "Metro Dry Goods", warehouse: "Dry Store", status: "in_stock", updated_at: new Date().toISOString() },
+    { sku: "SKU-1005", name: "Cooking Oil", category: "Dry Goods", unit: "ltr", stock: 14, min_stock: 10, reorder: 25, cost: 480, supplier: "Metro Dry Goods", warehouse: "Dry Store", status: "low", updated_at: new Date().toISOString() },
+    { sku: "SKU-1006", name: "Coriander (Fresh)", category: "Vegetables", unit: "kg", stock: 1.1, min_stock: 2, reorder: 5, cost: 180, supplier: "Fresh Valley Vegetables", warehouse: "Main Kitchen Store", status: "critical", updated_at: new Date().toISOString() },
+    { sku: "SKU-1007", name: "Tomatoes", category: "Vegetables", unit: "kg", stock: 0, min_stock: 5, reorder: 15, cost: 140, supplier: "Fresh Valley Vegetables", warehouse: "Main Kitchen Store", status: "critical", updated_at: new Date().toISOString() },
+  ]);
+
+  insertMany("inventory_transactions", ["ingredient_id", "name", "type", "qty", "unit", "warehouse", "batch_number", "reference_number", "date", "reason", "notes", "user"], [
+    { ingredient_id: 1, name: "Chicken Boneless", type: "Stock In", qty: 50, unit: "kg", warehouse: "Main Kitchen Store", batch_number: "BATCH-0801", reference_number: "PO-0001", date: "2026-08-01", reason: "Purchase Receipt", notes: "Initial stock load", user: "Hammadullah" },
+  ]);
+
+  insertMany("physical_counts", ["date", "status", "approved_by", "notes", "items"], [
+    { date: "2026-08-01", status: "completed", approved_by: "Hammadullah", notes: "Monthly start reconciliation", items: JSON.stringify([
+      { name: "Chicken Boneless", warehouse: "Main Kitchen Store", system_qty: 48, counted_qty: 48, diff: 0, variance: 0, reason: "", notes: "Correct" },
+    ])}
+  ]);
+
+  insertMany("expiry_batches", ["name", "batch_number", "supplier", "purchase_date", "expiry_date", "qty", "unit", "warehouse", "status"], [
+    { name: "Mozzarella Cheese", batch_number: "B-220", supplier: "Khyber Dairy Co.", purchase_date: "2026-08-07", expiry_date: "2026-08-12", qty: 3.2, unit: "kg", warehouse: "Cold Storage", status: "Expiring Soon" },
   ]);
 
   insertMany("suppliers", ["name", "phone", "category", "due", "status"], [
@@ -595,6 +821,51 @@ function seed(db) {
 
   // Seed default permissions
   seedPermissions(db);
+
+  const defaultAccounts = [
+    // Assets
+    { code: '1000', name: 'Assets', type: 'asset', parent_code: null, is_system: 1 },
+    { code: '1001', name: 'Cash in Drawer', type: 'asset', parent_code: '1000', is_system: 1 },
+    { code: '1002', name: 'Bank Account (Main)', type: 'asset', parent_code: '1000', is_system: 1 },
+    { code: '1003', name: 'Accounts Receivable', type: 'asset', parent_code: '1000', is_system: 1 },
+    { code: '1004', name: 'Inventory', type: 'asset', parent_code: '1000', is_system: 1 },
+    { code: '1005', name: 'Prepaid Expenses', type: 'asset', parent_code: '1000', is_system: 1 },
+    // Liabilities
+    { code: '2000', name: 'Liabilities', type: 'liability', parent_code: null, is_system: 1 },
+    { code: '2001', name: 'Accounts Payable', type: 'liability', parent_code: '2000', is_system: 1 },
+    { code: '2002', name: 'GST/Sales Tax Payable', type: 'liability', parent_code: '2000', is_system: 1 },
+    { code: '2003', name: 'Service Charge Payable', type: 'liability', parent_code: '2000', is_system: 1 },
+    { code: '2004', name: 'Employee Salaries Payable', type: 'liability', parent_code: '2000', is_system: 1 },
+    // Equity
+    { code: '3000', name: 'Equity', type: 'equity', parent_code: null, is_system: 1 },
+    { code: '3001', name: 'Owner Capital', type: 'equity', parent_code: '3000', is_system: 1 },
+    { code: '3002', name: 'Retained Earnings', type: 'equity', parent_code: '3000', is_system: 1 },
+    // Income
+    { code: '4000', name: 'Income', type: 'income', parent_code: null, is_system: 1 },
+    { code: '4001', name: 'Food Sales Revenue', type: 'income', parent_code: '4000', is_system: 1 },
+    { code: '4002', name: 'Beverage Sales Revenue', type: 'income', parent_code: '4000', is_system: 1 },
+    { code: '4003', name: 'Service Charge Income', type: 'income', parent_code: '4000', is_system: 1 },
+    { code: '4004', name: 'Other Income', type: 'income', parent_code: '4000', is_system: 1 },
+    // Expenses
+    { code: '5000', name: 'Expenses', type: 'expense', parent_code: null, is_system: 1 },
+    { code: '5001', name: 'Cost of Goods Sold', type: 'expense', parent_code: '5000', is_system: 1 },
+    { code: '5002', name: 'Electricity', type: 'expense', parent_code: '5000', is_system: 1 },
+    { code: '5003', name: 'Gas', type: 'expense', parent_code: '5000', is_system: 1 },
+    { code: '5004', name: 'Rent', type: 'expense', parent_code: '5000', is_system: 1 },
+    { code: '5005', name: 'Salaries & Wages', type: 'expense', parent_code: '5000', is_system: 1 },
+    { code: '5006', name: 'Maintenance & Repairs', type: 'expense', parent_code: '5000', is_system: 1 },
+    { code: '5007', name: 'Marketing', type: 'expense', parent_code: '5000', is_system: 1 },
+    { code: '5099', name: 'Miscellaneous', type: 'expense', parent_code: '5000', is_system: 1 },
+  ];
+
+  // Only seed if accounts table is empty
+  const acctCount = db.prepare('SELECT COUNT(*) as c FROM accounts').get();
+  if (acctCount.c === 0) {
+    const ins = db.prepare('INSERT INTO accounts (code, name, type, parent_code, is_system) VALUES (?, ?, ?, ?, ?)');
+    for (const a of defaultAccounts) {
+      ins.run(a.code, a.name, a.type, a.parent_code, a.is_system);
+    }
+  }
 }
 
 module.exports = { openDatabase, ALLOWED_TABLES, MODULES, DEFAULT_PERMISSIONS, MODULE_OVERRIDES };

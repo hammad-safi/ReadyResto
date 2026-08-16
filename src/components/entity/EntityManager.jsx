@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import api from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
@@ -33,7 +34,13 @@ export default function EntityManager({
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchParams] = useSearchParams();
+  const searchParamVal = searchParams.get("search") || "";
+  const [searchQuery, setSearchQuery] = useState(searchParamVal);
+
+  useEffect(() => {
+    setSearchQuery(searchParamVal);
+  }, [searchParamVal]);
 
   const load = () => {
     setLoading(true);
@@ -51,7 +58,9 @@ export default function EntityManager({
   const openAdd = () => {
     const defaults = {};
     fields.forEach((f) => {
-      if (f.type === "number") {
+      if (f.defaultValue !== undefined) {
+        defaults[f.key] = f.defaultValue;
+      } else if (f.type === "number") {
         defaults[f.key] = 0;
       } else if (f.type === "select") {
         defaults[f.key] = f.options?.[0] ?? "";
@@ -73,6 +82,18 @@ export default function EntityManager({
   const handleSave = async () => {
     const payload = { ...form };
     delete payload.id;
+
+    // Auto-generate SKU for inventory_items if blank
+    if (table === "inventory_items" && !payload.sku) {
+      const skuNums = rows
+        .map(r => r.sku)
+        .filter(sku => sku && sku.startsWith("SKU-"))
+        .map(sku => parseInt(sku.replace("SKU-", ""), 10))
+        .filter(num => !isNaN(num));
+      const nextNum = skuNums.length > 0 ? Math.max(...skuNums) + 1 : 1001;
+      payload.sku = `SKU-${nextNum}`;
+    }
+
     if (editing) {
       await api.update(table, editing.id, payload, {
         user: user.name,
@@ -134,7 +155,18 @@ export default function EntityManager({
     : columns;
 
   const filteredRows = useMemo(() => {
-    let result = rows;
+    let result = [...rows];
+
+    // Sort descending by ID/date by default
+    result.sort((a, b) => {
+      if (a.created_at && b.created_at) {
+        return new Date(b.created_at) - new Date(a.created_at);
+      }
+      const numA = Number(String(a.id).replace(/\D/g, ""));
+      const numB = Number(String(b.id).replace(/\D/g, ""));
+      return (numB || 0) - (numA || 0);
+    });
+
     if (onFilter) {
       result = result.filter(onFilter);
     }
@@ -193,10 +225,14 @@ export default function EntityManager({
         }
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {fields.map((f) => (
-            <div key={f.key} className={f.fullWidth ? "sm:col-span-2" : ""}>
-              <label className="text-xs font-medium text-ink-600">{f.label}</label>
-              {f.type === "select" ? (
+          {fields.map((f) => {
+            if (f.hide && f.hide(form)) return null;
+            return (
+              <div key={f.key} className={f.fullWidth ? "sm:col-span-2" : ""}>
+                <label className="text-xs font-medium text-ink-600">{f.label}</label>
+                {f.render ? (
+                  f.render(form, setForm)
+                ) : f.type === "select" ? (
                 <select
                   value={form[f.key] ?? ""}
                   onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
@@ -217,14 +253,17 @@ export default function EntityManager({
                 <input
                   type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
                   value={form[f.key] ?? ""}
+                  disabled={f.disabled}
+                  placeholder={f.placeholder}
                   onChange={(e) =>
                     setForm((p) => ({ ...p, [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value }))
                   }
-                  className="w-full mt-1 border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-paprika-500/30"
+                  className="w-full mt-1 border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-paprika-500/30 disabled:bg-canvas-50 disabled:text-ink-400"
                 />
               )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       </Modal>
 

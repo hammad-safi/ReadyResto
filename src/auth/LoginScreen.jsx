@@ -189,25 +189,25 @@ function PinPad({ onPress, onClear, onBack }) {
         <button
           key={n}
           onClick={() => onPress(String(n))}
-          className="h-14 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xl font-semibold
-                     border border-white/10 transition-all duration-100 active:scale-95 select-none"
+          className="h-14 rounded-xl bg-canvas-100 hover:bg-canvas-200 active:bg-canvas-300 text-ink-900 text-xl font-semibold
+                     border border-canvas-200 transition-all duration-100 active:scale-95 select-none"
         >
           {n}
         </button>
       ))}
       <button onClick={onClear}
-        className="h-14 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white/70 text-xs font-semibold
-                   border border-white/10 transition-all duration-100 active:scale-95 select-none">
+        className="h-14 rounded-xl bg-canvas-100 hover:bg-canvas-200 active:bg-canvas-300 text-ink-600 text-xs font-semibold
+                   border border-canvas-200 transition-all duration-100 active:scale-95 select-none">
         CLR
       </button>
       <button onClick={() => onPress("0")}
-        className="h-14 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xl font-semibold
-                   border border-white/10 transition-all duration-100 active:scale-95 select-none">
+        className="h-14 rounded-xl bg-canvas-100 hover:bg-canvas-200 active:bg-canvas-300 text-ink-900 text-xl font-semibold
+                   border border-canvas-200 transition-all duration-100 active:scale-95 select-none">
         0
       </button>
       <button onClick={onBack}
-        className="h-14 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 border border-white/10
-                   flex items-center justify-center text-white/70 transition-all duration-100 active:scale-95 select-none">
+        className="h-14 rounded-xl bg-canvas-100 hover:bg-canvas-200 active:bg-canvas-300 border border-canvas-200
+                   flex items-center justify-center text-ink-600 transition-all duration-100 active:scale-95 select-none">
         <Delete size={20} />
       </button>
     </div>
@@ -319,11 +319,11 @@ export default function LoginScreen() {
       )}
 
       {/* Background */}
-      <div className="min-h-screen bg-ink-950 flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="min-h-screen bg-canvas-50 flex items-center justify-center p-4 relative overflow-hidden" style={{ backgroundColor: "rgb(var(--surface-page))" }}>
         {/* Decorative blobs */}
-        <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-paprika-600/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] bg-saffron-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-paprika-900/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-paprika-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] bg-saffron-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-paprika-900/5 rounded-full blur-3xl pointer-events-none" />
 
         {/* Card */}
         <div
@@ -331,41 +331,41 @@ export default function LoginScreen() {
           style={shake ? { animation: "shake 0.5s ease" } : {}}
         >
           {/* Glass card */}
-          <div className="bg-white/[0.06] backdrop-blur-xl border border-white/10 rounded-3xl p-7 shadow-2xl">
+          <div className="bg-white border border-canvas-200 rounded-3xl p-7 shadow-xl shadow-canvas-200/50">
             {/* Logo + Title */}
             <div className="flex flex-col items-center mb-6">
               <div className="h-14 w-14 rounded-2xl bg-paprika-500 flex items-center justify-center mb-4 shadow-lg shadow-paprika-500/30">
                 <UtensilsCrossed size={26} className="text-white" strokeWidth={2} />
               </div>
-              <h1 className="font-display font-bold text-xl text-white">Dastarkhwan ERP</h1>
-              <p className="text-xs text-white/50 mt-1 tracking-wide">Restaurant Management System</p>
+              <h1 className="font-display font-bold text-xl text-ink-900">Dastarkhwan ERP</h1>
+              <p className="text-xs text-ink-500 mt-1 tracking-wide">Restaurant Management System</p>
             </div>
 
             {/* Branch Selector (shown when multi-branch) */}
             <div className="mb-5">
-              <label className="relative flex items-center gap-2 bg-white/10 border border-white/10 rounded-xl px-3.5 py-2.5 cursor-pointer hover:bg-white/15 transition-colors">
-                <Building2 size={15} className="text-white/60 shrink-0" />
+              <label className="relative flex items-center gap-2 bg-canvas-50 border border-canvas-200 rounded-xl px-3.5 py-2.5 cursor-pointer hover:bg-canvas-100 transition-colors">
+                <Building2 size={15} className="text-ink-600 shrink-0" />
                 <select
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
-                  className="flex-1 bg-transparent text-sm text-white outline-none appearance-none cursor-pointer"
+                  className="flex-1 bg-transparent text-sm text-ink-900 outline-none appearance-none cursor-pointer"
                 >
-                  {BRANCHES.map((b) => <option key={b} value={b} className="bg-ink-900 text-white">{b}</option>)}
+                  {BRANCHES.map((b) => <option key={b} value={b} className="text-ink-900">{b}</option>)}
                 </select>
-                <ChevronDown size={14} className="text-white/40 shrink-0" />
+                <ChevronDown size={14} className="text-ink-500 shrink-0" />
               </label>
             </div>
 
             {/* Tab Toggle */}
-            <div className="flex bg-white/10 rounded-xl p-1 mb-5 gap-1">
+            <div className="flex bg-canvas-100 rounded-xl p-1 mb-5 gap-1 border border-canvas-200">
               {[{ id: "pin", label: "PIN Login" }, { id: "password", label: "Password" }].map((t) => (
                 <button
                   key={t.id}
                   onClick={() => { setTab(t.id); setError(""); setPin(""); }}
                   className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
                     tab === t.id
-                      ? "bg-paprika-500 text-white shadow-lg shadow-paprika-500/30"
-                      : "text-white/60 hover:text-white/80"
+                      ? "bg-paprika-500 text-white shadow-md shadow-paprika-500/30"
+                      : "text-ink-600 hover:text-ink-900"
                   }`}
                 >
                   {t.label}
@@ -384,7 +384,7 @@ export default function LoginScreen() {
                       className={`h-3 w-3 rounded-full border transition-all duration-200 ${
                         i < pin.length
                           ? "bg-paprika-400 border-paprika-400 scale-110"
-                          : "border-white/30"
+                          : "border-canvas-200"
                       }`}
                     />
                   ))}
@@ -396,7 +396,7 @@ export default function LoginScreen() {
 
                 {loading ? (
                   <div className="flex items-center justify-center py-8">
-                    <RefreshCw size={22} className="text-white/60 animate-spin" />
+                    <RefreshCw size={22} className="text-ink-400 animate-spin" />
                   </div>
                 ) : (
                   <PinPad
@@ -418,11 +418,11 @@ export default function LoginScreen() {
                   {loading ? "Verifying…" : "Unlock"}
                 </button>
 
-                <p className="text-center text-[10px] text-white/30 mt-4">
-                  Demo PINs: <span className="text-white/50">1234</span> Owner ·{" "}
-                  <span className="text-white/50">2345</span> Cashier ·{" "}
-                  <span className="text-white/50">3456</span> Waiter ·{" "}
-                  <span className="text-white/50">4567</span> Kitchen
+                <p className="text-center text-[10px] text-ink-400 mt-4">
+                  Demo PINs: <span className="text-ink-500 font-medium">1234</span> Owner ·{" "}
+                  <span className="text-ink-500 font-medium">2345</span> Cashier ·{" "}
+                  <span className="text-ink-500 font-medium">3456</span> Waiter ·{" "}
+                  <span className="text-ink-500 font-medium">4567</span> Kitchen
                 </p>
               </div>
             )}
@@ -431,7 +431,7 @@ export default function LoginScreen() {
             {tab === "password" && (
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-medium text-white/60">Username or Email</label>
+                  <label className="text-xs font-medium text-ink-600">Username or Email</label>
                   <input
                     ref={usernameRef}
                     type="text"
@@ -439,14 +439,14 @@ export default function LoginScreen() {
                     onChange={(e) => { setUsername(e.target.value); setError(""); }}
                     onKeyDown={(e) => e.key === "Enter" && submitPassword()}
                     placeholder="Enter username or email"
-                    className="w-full mt-1.5 bg-white/10 border border-white/10 rounded-xl px-3.5 py-3
-                               text-sm text-white placeholder:text-white/30 outline-none
+                    className="w-full mt-1.5 bg-canvas-50 border border-canvas-200 rounded-xl px-3.5 py-3
+                               text-sm text-ink-900 placeholder:text-ink-400 outline-none
                                focus:ring-2 focus:ring-paprika-500/50 focus:border-paprika-500/50 transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-white/60">Password</label>
+                  <label className="text-xs font-medium text-ink-600">Password</label>
                   <div className="relative mt-1.5">
                     <input
                       type={showPassword ? "text" : "password"}
@@ -454,14 +454,14 @@ export default function LoginScreen() {
                       onChange={(e) => { setPassword(e.target.value); setError(""); }}
                       onKeyDown={(e) => e.key === "Enter" && submitPassword()}
                       placeholder="Enter password"
-                      className="w-full bg-white/10 border border-white/10 rounded-xl px-3.5 py-3 pr-11
-                                 text-sm text-white placeholder:text-white/30 outline-none
+                      className="w-full bg-canvas-50 border border-canvas-200 rounded-xl px-3.5 py-3 pr-11
+                                 text-sm text-ink-900 placeholder:text-ink-400 outline-none
                                  focus:ring-2 focus:ring-paprika-500/50 focus:border-paprika-500/50 transition-all"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600 transition-colors"
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
@@ -478,7 +478,7 @@ export default function LoginScreen() {
                     onChange={(e) => setRememberDevice(e.target.checked)}
                     className="h-4 w-4 rounded accent-paprika-500 cursor-pointer"
                   />
-                  <span className="text-xs text-white/50 group-hover:text-white/70 transition-colors">
+                  <span className="text-xs text-ink-600 group-hover:text-ink-900 transition-colors">
                     Remember this device
                   </span>
                 </label>
@@ -493,8 +493,8 @@ export default function LoginScreen() {
                   {loading ? <><RefreshCw size={14} className="animate-spin" />Signing in…</> : "Login"}
                 </button>
 
-                <p className="text-center text-[10px] text-white/30">
-                  Demo password: <span className="text-white/50">owner123</span> (Owner)
+                <p className="text-center text-[10px] text-ink-400">
+                  Demo password: <span className="text-ink-500 font-medium">owner123</span> (Owner)
                 </p>
               </div>
             )}
@@ -503,7 +503,7 @@ export default function LoginScreen() {
             <div className="mt-5 text-center">
               <button
                 onClick={() => setShowOverride(true)}
-                className="text-xs text-white/40 hover:text-white/70 transition-colors underline underline-offset-2"
+                className="text-xs text-ink-400 hover:text-ink-600 transition-colors underline underline-offset-2"
               >
                 Forgot PIN / Password?
               </button>
@@ -511,7 +511,7 @@ export default function LoginScreen() {
           </div>
 
           {/* Footer */}
-          <p className="text-center text-[10px] text-white/20 mt-5">
+          <p className="text-center text-[10px] text-ink-400 mt-5">
             Dastarkhwan ERP · Offline Mode · v1.0
           </p>
         </div>

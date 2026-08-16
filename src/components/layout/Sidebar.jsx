@@ -1,5 +1,8 @@
 import { NavLink } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { useAuth } from "../../auth/AuthContext";
+import { useRestaurant } from "../../context/RestaurantContext";
+import api from "../../api/client";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -82,9 +85,27 @@ const groups = [
 
 export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }) {
   const { user, lock, logout, canDo } = useAuth();
+  const { profile } = useRestaurant();
+
+  const [currentCashier, setCurrentCashier] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    if (user?.id) {
+      api.getCurrentShift(user.id).then((s) => {
+        if (mounted) setCurrentCashier(s);
+      });
+    }
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id]);
+
   const initials = user?.name
     ? user.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
     : "U";
+
+  const userAvatar = user?.profile_photo || (user?.role === "Owner" ? profile?.ownerPhoto : null);
 
   // Filter groups and items based on permissions
   const filteredGroups = groups
@@ -100,29 +121,53 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }) 
         <div className="fixed inset-0 z-40 bg-ink-950/50 lg:hidden" onClick={onClose} />
       )}
       <aside
-        className={`fixed z-50 lg:z-0 top-0 left-0 h-full bg-ink-900 text-canvas-100 flex flex-col
+        className={`fixed z-50 lg:z-0 top-0 left-0 h-full text-white/90 flex flex-col
         transition-all duration-200 lg:static lg:h-screen lg:shrink-0
         ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0
         w-[264px] ${collapsed ? "lg:w-[72px]" : "lg:w-[264px]"}`}
+        style={{ backgroundColor: "rgb(var(--surface-sidebar))", color: "rgb(var(--text-inverse))" }}
       >
         <div className={`flex items-center h-16 border-b border-white/10 shrink-0 ${collapsed ? "justify-center px-0" : "justify-between px-5"}`}>
           <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="h-8 w-8 shrink-0 rounded-lg bg-paprika-500 flex items-center justify-center" onClick={collapsed ? onToggleCollapse : undefined} style={{ cursor: collapsed ? 'pointer' : 'default' }}>
-              <Logo size={17} className="text-white" strokeWidth={2.2} />
-            </div>
+            {profile?.logo ? (
+              <img
+                src={profile.logo}
+                alt="Logo"
+                className="h-8 w-8 shrink-0 rounded-lg object-cover border border-white/20"
+                onClick={collapsed ? onToggleCollapse : undefined}
+                style={{ cursor: collapsed ? "pointer" : "default" }}
+              />
+            ) : (
+              <div
+                className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center shadow-sm"
+                onClick={collapsed ? onToggleCollapse : undefined}
+                style={{ cursor: collapsed ? "pointer" : "default", backgroundColor: "rgb(var(--color-primary-500))" }}
+              >
+                <Logo size={17} className="text-white" strokeWidth={2.2} />
+              </div>
+            )}
             {!collapsed && (
-              <div className="leading-tight">
-                <p className="font-display font-semibold text-sm text-white truncate">Dastarkhwan</p>
-                <p className="text-[10px] font-mono text-canvas-200/50 tracking-widest truncate">ERP · OFFLINE</p>
+              <div className="leading-tight min-w-0 flex-1">
+                <p className="font-display font-semibold text-sm text-white truncate">
+                  {profile?.name || "Dastarkhwan"}
+                </p>
+                <p className="text-[10px] font-mono text-white/50 tracking-wider truncate uppercase">
+                  {profile?.tagline || "ERP · OFFLINE"}
+                </p>
+                {profile?.showCashierName && !collapsed && (
+                  <p className="text-[11px] text-white/60 mt-0.5 truncate font-medium">
+                    {currentCashier?.cashier_name ? `Cashier: ${currentCashier.cashier_name}` : "No active cashier"}
+                  </p>
+                )}
               </div>
             )}
           </div>
           {!collapsed && (
-            <button className="hidden lg:flex text-canvas-200/50 hover:text-white transition-colors" onClick={onToggleCollapse}>
+            <button className="hidden lg:flex text-white/50 hover:text-white transition-colors" onClick={onToggleCollapse}>
               <ChevronLeft size={18} />
             </button>
           )}
-          <button className="lg:hidden text-canvas-200/70 hover:text-white" onClick={onClose}>
+          <button className="lg:hidden text-white/70 hover:text-white" onClick={onClose}>
             <X size={20} />
           </button>
         </div>
@@ -131,7 +176,7 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }) 
           {filteredGroups.map((group) => (
             <div key={group.label}>
               {!collapsed ? (
-                <p className="px-2.5 text-[10px] font-semibold tracking-widest uppercase text-canvas-200/35 mb-1.5 truncate">
+                <p className="px-2.5 text-[10px] font-semibold tracking-widest uppercase text-white/40 mb-1.5 truncate">
                   {group.label}
                 </p>
               ) : (
@@ -151,7 +196,7 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }) 
                       } ${
                         isActive
                           ? "bg-paprika-500 text-white shadow-soft"
-                          : "text-canvas-200/70 hover:bg-white/5 hover:text-white"
+                          : "text-white/70 hover:bg-white/5 hover:text-white"
                       }`
                     }
                   >
@@ -166,9 +211,18 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }) 
 
         <div className={`p-4 border-t border-white/10 shrink-0 ${collapsed ? "flex flex-col items-center gap-3 px-2" : ""}`}>
           <div className={`flex items-center gap-2.5 ${collapsed ? "" : "mb-3"}`}>
-            <div className="h-8 w-8 rounded-full bg-saffron-400/20 text-saffron-400 flex items-center justify-center text-xs font-semibold shrink-0" title={user?.name}>
-              {initials}
-            </div>
+            {userAvatar ? (
+              <img
+                src={userAvatar}
+                alt="Avatar"
+                className="h-8 w-8 rounded-full object-cover shrink-0 border border-saffron-400/40"
+                title={user?.name}
+              />
+            ) : (
+              <div className="h-8 w-8 rounded-full bg-saffron-400/20 text-saffron-400 flex items-center justify-center text-xs font-semibold shrink-0" title={user?.name}>
+                {initials}
+              </div>
+            )}
             {!collapsed && (
               <div className="leading-tight min-w-0 flex-1">
                 <p className="text-xs font-medium text-white truncate">{user?.name}</p>
@@ -182,14 +236,14 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }) 
             <button
               onClick={lock}
               title={collapsed ? "Lock" : undefined}
-              className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-white/10 text-[11px] font-medium text-canvas-200/60 hover:text-white hover:bg-white/5 transition-all ${collapsed ? "px-0 w-full" : "flex-1"}`}
+              className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-white/10 text-[11px] font-medium text-white/60 hover:text-white hover:bg-white/5 transition-all ${collapsed ? "px-0 w-full" : "flex-1"}`}
             >
               <Lock size={12} /> {!collapsed && "Lock"}
             </button>
             <button
               onClick={logout}
               title={collapsed ? "Log out" : undefined}
-              className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-white/10 text-[11px] font-medium text-canvas-200/60 hover:text-white hover:bg-white/5 transition-all ${collapsed ? "px-0 w-full" : "flex-1"}`}
+              className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-white/10 text-[11px] font-medium text-white/60 hover:text-white hover:bg-white/5 transition-all ${collapsed ? "px-0 w-full" : "flex-1"}`}
             >
               <LogOut size={12} /> {!collapsed && "Log out"}
             </button>

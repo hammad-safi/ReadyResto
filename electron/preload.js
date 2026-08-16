@@ -30,10 +30,50 @@ contextBridge.exposeInMainWorld("api", {
   // Settings
   getSetting: (key) => ipcRenderer.invoke("settings:get", key),
   setSetting: (key, value) => ipcRenderer.invoke("settings:set", key, value),
+  markAllNotificationsRead: () => ipcRenderer.invoke("notifications:markAllRead"),
+  clearNotifications: () => ipcRenderer.invoke("notifications:clear"),
 
   // Orders
   createOrderWithItems: (order, items, meta) => ipcRenderer.invoke("orders:createWithItems", order, items, meta),
   updateOrderStatus: (id, status, meta) => ipcRenderer.invoke("orders:updateStatus", id, status, meta),
+
+  // Purchases & Payments
+  processPurchaseOrder: (po, items, meta) => ipcRenderer.invoke("purchases:processOrder", po, items, meta),
+  returnPurchaseOrder: (poId, returnData, meta) => ipcRenderer.invoke("purchases:returnOrder", poId, returnData, meta),
+  deletePurchaseOrder: (poId, meta) => ipcRenderer.invoke("purchases:deleteOrder", poId, meta),
+  paySupplier: (supplierId, data, meta) => ipcRenderer.invoke("suppliers:paySupplier", supplierId, data, meta),
+
+  // Inventory Custom Actions
+  addInventoryTransaction: (tx) => ipcRenderer.invoke("inventory:addTransaction", tx),
+  submitPhysicalCount: (count) => ipcRenderer.invoke("inventory:submitPhysicalCount", count),
+  addExpiryBatch: (batch) => ipcRenderer.invoke("inventory:addExpiryBatch", batch),
+
+  // Accounting Module
+  listAccounts: () => ipcRenderer.invoke("accounts:list"),
+  createAccount: (data) => ipcRenderer.invoke("accounts:create", data),
+  updateAccount: (id, data) => ipcRenderer.invoke("accounts:update", id, data),
+  deleteAccount: (id) => ipcRenderer.invoke("accounts:delete", id),
+
+  postJournal: (entries) => ipcRenderer.invoke("journal:post", entries),
+  listJournal: (filters) => ipcRenderer.invoke("journal:list", filters),
+  getAccountLedger: (accountCode, startDate, endDate) => ipcRenderer.invoke("journal:getAccountLedger", accountCode, startDate, endDate),
+
+  listBankAccounts: () => ipcRenderer.invoke("bank:list"),
+  createBankAccount: (data) => ipcRenderer.invoke("bank:create", data),
+  updateBankAccount: (id, data) => ipcRenderer.invoke("bank:update", id, data),
+  transferFunds: (data) => ipcRenderer.invoke("bank:transfer", data),
+
+  recordCustomerPayment: (data) => ipcRenderer.invoke("customer:recordPayment", data),
+
+  openShift: (data) => ipcRenderer.invoke("shift:open", data),
+  getCurrentShift: (cashierId) => ipcRenderer.invoke("shift:getCurrent", cashierId),
+  closeShift: (shiftId, data) => ipcRenderer.invoke("shift:close", shiftId, data),
+  listShifts: (filters) => ipcRenderer.invoke("shift:list", filters),
+
+  getProfitLoss: (startDate, endDate) => ipcRenderer.invoke("accounting:profitLoss", startDate, endDate),
+  getBalanceSheet: (asOfDate) => ipcRenderer.invoke("accounting:balanceSheet", asOfDate),
+  getTrialBalance: (startDate, endDate) => ipcRenderer.invoke("accounting:trialBalance", startDate, endDate),
+  getCashFlow: (startDate, endDate) => ipcRenderer.invoke("accounting:cashFlow", startDate, endDate),
 
   // Sales returns / adjustments
   processReturn: (orderId, payload, meta) => ipcRenderer.invoke("sales:processReturn", orderId, payload, meta),

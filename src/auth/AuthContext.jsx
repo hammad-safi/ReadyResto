@@ -89,6 +89,9 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    if (user) {
+      api.logAction(user.name, "Authentication", "Logged out manually");
+    }
     setUser(null);
     setLocked(false);
   };
@@ -98,9 +101,7 @@ export function AuthProvider({ children }) {
     if (!user) return false;
     if (user.role === "Owner") return true;
     const row = permissions.find((p) => p.role === user.role && p.module === module);
-    if (!row) return false;
-    const key = `can_${action}`;
-    return !!row[key];
+    return row ? !!row[`can_${action}`] : false;
   };
 
   if (!ready) {

@@ -1,43 +1,47 @@
-const TONES = {
-  neutral: "bg-canvas-200 text-ink-700",
-  success: "bg-basil-500/10 text-basil-600",
-  warning: "bg-saffron-400/15 text-saffron-500",
-  danger: "bg-paprika-500/10 text-paprika-600",
-  info: "bg-slateblue-500/10 text-slateblue-500",
-};
-
-export default function Badge({ children, tone = "neutral", dot = false }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${TONES[tone] || TONES.neutral}`}
-    >
-      {dot && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
-      {children}
-    </span>
-  );
-}
-
 export function statusTone(status) {
+  if (!status) return "neutral";
   const map = {
+    // Payment statuses
+    paid: "success",
+    refunded: "special",
+    held: "warning",
+    unpaid: "warning",
+    cancelled: "danger",
+    // Kitchen / order statuses
     available: "success",
     active: "success",
     in_stock: "success",
     received: "success",
     ready: "success",
-    served: "info",
-    occupied: "danger",
+    served: "neutral",
+    completed: "success",
+    occupied: "special", // Distinct from danger for table states
     critical: "danger",
-    cancelled: "danger",
     blocked: "danger",
     low: "warning",
     reserved: "warning",
-    preparing: "warning",
+    preparing: "info",
+    delayed: "danger",
     sent: "warning",
     on_leave: "warning",
-    cleaning: "neutral",
+    cleaning: "warning",
     draft: "neutral",
-    new: "info",
+    vacant: "neutral",
+    new: "neutral",
     out_of_stock: "danger",
   };
-  return map[status] || "neutral";
+  return map[status.toLowerCase()] || "neutral";
+}
+
+export default function Badge({ children, status, tone, dot = false, className = "" }) {
+  const finalTone = statusTone(status || tone);
+  
+  return (
+    <span
+      className={`status-badge status-${finalTone} ${className}`}
+    >
+      {dot && <span className="h-1.5 w-1.5 rounded-full bg-current shrink-0" />}
+      {children}
+    </span>
+  );
 }

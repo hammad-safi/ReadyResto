@@ -1,13 +1,19 @@
 import { useState } from "react";
 import EntityManager from "../components/entity/EntityManager";
 import Badge, { statusTone } from "../components/ui/Badge";
-import { useDashboardFilters } from "../context/DashboardFilterContext";
+
+const fmtDate = (v) => {
+  if (!v) return "—";
+  try {
+    return new Date(v).toLocaleDateString("en-PK", { year: "numeric", month: "short", day: "numeric" });
+  } catch { return v; }
+};
 
 const columns = [
   { key: "name", header: "Employee", sortKey: "name" },
   { key: "role", header: "Role", sortKey: "role" },
   { key: "phone", header: "Phone", sortKey: "phone" },
-  { key: "joined", header: "Joined", sortKey: "joined" },
+  { key: "joined", header: "Joined", sortKey: "joined", render: (r) => fmtDate(r.joined) },
   { key: "status", header: "Status", sortKey: "status", render: (r) => <Badge tone={statusTone(r.status)}>{r.status.replace("_", " ")}</Badge> },
 ];
 
@@ -25,11 +31,9 @@ export default function Employees() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  const { getDateRange } = useDashboardFilters();
+  const { getDateRange: _unused } = { getDateRange: () => ({}) }; // kept for potential future use
 
   const filterFn = (r) => {
-    const globalRange = getDateRange();
-
     if (roleFilter !== "All" && r.role !== roleFilter) return false;
     if (statusFilter !== "All" && r.status !== statusFilter) return false;
     
@@ -38,9 +42,6 @@ export default function Employees() {
       if (!d) return false;
       if (dateFrom && d < new Date(`${dateFrom}T00:00:00`)) return false;
       if (dateTo && d > new Date(`${dateTo}T23:59:59`)) return false;
-    } else if (globalRange.start && globalRange.end) {
-      if (!d) return false;
-      if (d < globalRange.start || d > globalRange.end) return false;
     }
     
     return true;

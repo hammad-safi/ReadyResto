@@ -12,6 +12,12 @@
     <link href="https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist.css" rel="stylesheet" />
   </head>
   <body>
+    <script>
+      (function() {
+        const theme = localStorage.getItem("theme-preference") || "sunset-paprika";
+        document.documentElement.classList.add("theme-" + theme);
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, useMemo } from "react";
-import { Plus, Pencil, Trash2, Search, Filter, RotateCcw } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { Plus, Pencil, Trash2, Search, Filter, RotateCcw, Printer, RefreshCw } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
+import useStickyState from "../hooks/useStickyState";
 import Button from "../components/ui/Button";
 import Badge, { statusTone } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
+import BarcodePrintModal from "../components/ui/BarcodePrintModal";
 import api from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 
@@ -13,7 +16,7 @@ const EMOJI = ["🍔", "🍗", "🍢", "🥩", "🍲", "🍛", "🍵", "🥤", "
 
 const emptyForm = {
   name: "", category: CATEGORY_OPTIONS[0], price: 0, prep_time: 10,
-  station: STATION_OPTIONS[0], status: "available", image: "🍽️",
+  station: STATION_OPTIONS[0], status: "available", image: "🍽️", tax_rate: 16, barcode: "",
 };
 
 const isImageSource = (value) => typeof value === "string" && (value.startsWith("data:") || value.startsWith("http://") || value.startsWith("https://"));
@@ -31,21 +34,30 @@ export default function Menu() {
   const [inventory, setInventory] = useState([]);
   const [recipes, setRecipes] = useState([]);
   const [recipeLines, setRecipeLines] = useState([]);
-  const [invSearch, setInvSearch] = useState("");
-  const [category, setCategory] = useState("All");
+  const [invSearch, setInvSearch] = useStickyState("", "menu_invSearch");
+  const [category, setCategory] = useStickyState("All", "menu_category");
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [form, setForm] = useState(emptyForm);
+  const [printModalOpen, setPrintModalOpen] = useState(false);
+  const [printItem, setPrintItem] = useState(null);
+  const [form, setForm] = useStickyState(emptyForm, "menu_form");
   const [loading, setLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [imageError, setImageError] = useState("");
   const fileInputRef = useRef(null);
 
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [stationFilter, setStationFilter] = useState("All");
+  const [searchParams] = useSearchParams();
+  const searchParamVal = searchParams.get("search") || "";
+  const [query, setQuery] = useStickyState(searchParamVal, "menu_query");
+
+  useEffect(() => {
+    if (searchParamVal) setQuery(searchParamVal);
+  }, [searchParamVal, setQuery]);
+
+  const [statusFilter, setStatusFilter] = useStickyState("All", "menu_statusFilter");
+  const [stationFilter, setStationFilter] = useStickyState("All", "menu_stationFilter");
 
   const load = () => {
     setLoading(true);
@@ -228,8 +240,8 @@ export default function Menu() {
             <button
               key={c}
               onClick={() => setCategory(c)}
-              className={`shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                category === c ? "bg-ink-900 text-white border-ink-900" : "border-canvas-200 text-ink-600 hover:bg-canvas-100"
+              className={`shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-medium border ${
+                category === c ? "bg-paprika-500 text-white border-paprika-500 shadow-sm" : "border-canvas-200 text-ink-600 hover:bg-canvas-100"
               }`}
             >
               {c}
@@ -316,7 +328,9 @@ export default function Menu() {
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="font-mono font-semibold text-paprika-600">Rs. {item.price}</span>
-                <span className="text-xs text-ink-500">Cost Rs. {item.cost}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-ink-500">Cost Rs. {item.cost}</span>
+                </div>
               </div>
               <div className="flex gap-2 pt-2 border-t border-canvas-100">
                 <Button variant="secondary" size="sm" icon={Pencil} className="flex-1" onClick={() => openEdit(item)}>Edit</Button>
@@ -338,6 +352,7 @@ export default function Menu() {
       <Modal
         open={addOpen}
         onClose={() => setAddOpen(false)}
+        onSubmit={save}
         title={editing ? "Edit Menu Item" : "Add New Menu Item"}
         width="max-w-2xl"
         footer={
@@ -366,6 +381,37 @@ export default function Menu() {
             >
               {CATEGORY_OPTIONS.map((c) => <option key={c}>{c}</option>)}
             </select>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-ink-600 mb-1 block">Barcode</label>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <input
+                value={form.barcode || ""}
+                onChange={(e) => setForm((p) => ({ ...p, barcode: e.target.value }))}
+                className="flex-1 border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-paprika-500/30 font-mono"
+                placeholder="Scan or enter barcode"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, barcode: Math.floor(100000000000 + Math.random() * 900000000000).toString() }))}
+                  className="flex-1 sm:flex-none px-3 py-2 bg-canvas-100 hover:bg-canvas-200 text-ink-700 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-1"
+                >
+                  <RefreshCw size={14} /> Generate
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPrintItem(form);
+                    setPrintModalOpen(true);
+                  }}
+                  disabled={!form.barcode}
+                  className="flex-1 sm:flex-none px-3 py-2 bg-paprika-500 hover:bg-paprika-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-1"
+                >
+                  <Printer size={14} /> Print Labels
+                </button>
+              </div>
+            </div>
           </div>
           <div className="sm:col-span-2">
             <label className="text-xs font-medium text-ink-600">Menu Image</label>
@@ -445,7 +491,7 @@ export default function Menu() {
             </div>
             <div className="flex gap-2 overflow-x-auto pb-2">
               {filteredInventory.map(item => (
-                <button key={item.id} onClick={() => addInvItem(item)} className="shrink-0 rounded-lg border border-canvas-200 bg-white px-3 py-2 text-left hover:border-basil-400 hover:bg-basil-50">
+                <button type="button" key={item.id} onClick={() => addInvItem(item)} className="shrink-0 rounded-lg border border-canvas-200 bg-white px-3 py-2 text-left hover:border-basil-400 hover:bg-basil-50">
                   <p className="text-sm font-semibold text-ink-900">{item.name}</p>
                   <p className="text-[10px] text-ink-400">Cost: Rs. {item.cost} / {item.unit}</p>
                 </button>
@@ -475,7 +521,7 @@ export default function Menu() {
                         Rs. {(Number(line.qty) * Number(line.cost)).toLocaleString()}
                       </td>
                       <td className="px-3 py-2 text-center">
-                        <button onClick={() => removeLine(idx)} className="text-ink-400 hover:text-paprika-600"><Trash2 size={14}/></button>
+                        <button type="button" onClick={() => removeLine(idx)} className="text-ink-400 hover:text-paprika-600"><Trash2 size={14}/></button>
                       </td>
                     </tr>
                   ))}
@@ -484,7 +530,7 @@ export default function Menu() {
               </table>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 bg-ink-900 text-white rounded-xl p-4">
+            <div className="mt-4 grid grid-cols-2 gap-3 bg-[rgb(var(--surface-sidebar))] text-white rounded-xl p-4">
               <div>
                 <p className="text-[11px] text-white/70">Total Cost per Plate</p>
                 <p className="font-mono font-bold text-xl">Rs. {totalCost.toLocaleString()}</p>
@@ -501,6 +547,7 @@ export default function Menu() {
       <Modal
         open={!!confirmDelete}
         onClose={() => setConfirmDelete(null)}
+        onSubmit={remove}
         title="Delete menu item?"
         footer={
           <>
@@ -513,6 +560,12 @@ export default function Menu() {
           This will permanently remove <span className="font-medium text-ink-900">{confirmDelete?.name}</span> from the menu.
         </p>
       </Modal>
+
+      <BarcodePrintModal 
+        isOpen={printModalOpen} 
+        onClose={() => setPrintModalOpen(false)} 
+        item={printItem} 
+      />
     </div>
   );
 }

@@ -3,7 +3,7 @@ const VARIANTS = {
   secondary: "bg-white text-ink-800 border border-canvas-200 hover:bg-canvas-100",
   ghost: "text-ink-600 hover:bg-canvas-100",
   danger: "bg-white text-paprika-600 border border-paprika-100 hover:bg-paprika-50",
-  dark: "bg-ink-900 text-white hover:bg-ink-800",
+  dark: "bg-ink-900 text-[rgb(var(--text-inverse))] hover:bg-ink-800",
 };
 
 const SIZES = {

@@ -2,19 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════
+   BASE DEFAULTS — html selector (element only, lowest specificity)
+   html.theme-* has element+class = higher specificity, so wins
+   ═══════════════════════════════════════════════════════════════ */
 @layer base {
+  html {
+    --color-primary-50: 253 241 234;
+    --color-primary-100: 250 224 208;
+    --color-primary-300: 231 154 103;
+    --color-primary-500: 193 68 14;
+    --color-primary-600: 166 58 11;
+    --color-primary-700: 138 48 9;
+    --color-canvas-50: 245 246 247;
+    --color-canvas-100: 238 240 242;
+    --color-canvas-200: 228 231 234;
+    --color-ink-950: 21 23 27;
+    --color-ink-900: 27 30 35;
+    --color-ink-800: 34 38 45;
+    --color-ink-700: 44 49 56;
+    --color-ink-600: 58 65 75;
+    --color-ink-500: 78 86 97;
+    /* Semantic surface tokens — used by Sidebar, Topbar, body etc. */
+    --surface-page:    245 246 247;
+    --surface-card:    255 255 255;
+    --surface-sidebar: 27 30 35;
+    --surface-topbar:  255 255 255;
+    --surface-input:   255 255 255;
+    --surface-table-header: 238 240 242;
+    --surface-table-row:    255 255 255;
+    --surface-table-hover:  245 246 247;
+    --text-base:    27 30 35;
+    --text-muted:   78 86 97;
+    --text-inverse: 255 255 255;
+    --border-default: 228 231 234;
+
+    /* Semantic Status Tokens (Light Mode Defaults) */
+    --status-danger-bg: 254 242 242;
+    --status-danger-text: 185 28 28;
+    --status-danger-border: 254 226 226;
+    --status-warning-bg: 255 251 235;
+    --status-warning-text: 180 83 9;
+    --status-warning-border: 253 230 138;
+    --status-success-bg: 236 253 245;
+    --status-success-text: 4 120 87;
+    --status-success-border: 167 243 208;
+    --status-info-bg: 239 246 255;
+    --status-info-text: 29 78 216;
+    --status-info-border: 191 219 254;
+    --status-special-bg: 250 245 255;
+    --status-special-text: 162 28 175;
+    --status-special-border: 243 232 255;
+    --status-neutral-bg: var(--color-canvas-100);
+    --status-neutral-text: var(--text-muted);
+    --status-neutral-border: var(--border-default);
+  }
+
   html, body, #root { height: 100%; }
   body {
-    @apply bg-canvas-50 text-ink-900 antialiased;
+    background-color: rgb(var(--surface-page));
+    color: rgb(var(--text-base));
+    @apply antialiased;
     font-family: 'Geist', 'Space Grotesk', Inter, -apple-system, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
   }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #D6DADD; border-radius: 8px; }
-  ::-webkit-scrollbar-thumb:hover { background: #C3C8CC; }
-
+  ::-webkit-scrollbar-thumb { background: rgb(var(--border-default)); border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--text-muted) / 0.5); }
   *:focus-visible {
-    outline: 2px solid #C1440E;
+    outline: 2px solid rgb(var(--color-primary-500));
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -24,24 +80,46 @@
   .ticket-tag {
     @apply font-mono text-[11px] tracking-wide px-2 py-0.5 rounded-sm border border-dashed;
   }
-}
 
-/* Frosted glass panel used across the dashboard */
-.glass-card {
-  background: rgba(255,255,255,0.85);
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(228,231,234,0.6);
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-semibold border transition-colors whitespace-nowrap;
+  }
+  .status-danger {
+    background-color: rgb(var(--status-danger-bg));
+    color: rgb(var(--status-danger-text));
+    border-color: rgb(var(--status-danger-border));
+  }
+  .status-warning {
+    background-color: rgb(var(--status-warning-bg));
+    color: rgb(var(--status-warning-text));
+    border-color: rgb(var(--status-warning-border));
+  }
+  .status-success {
+    background-color: rgb(var(--status-success-bg));
+    color: rgb(var(--status-success-text));
+    border-color: rgb(var(--status-success-border));
+  }
+  .status-info {
+    background-color: rgb(var(--status-info-bg));
+    color: rgb(var(--status-info-text));
+    border-color: rgb(var(--status-info-border));
+  }
+  .status-special {
+    background-color: rgb(var(--status-special-bg));
+    color: rgb(var(--status-special-text));
+    border-color: rgb(var(--status-special-border));
+  }
+  .status-neutral {
+    background-color: rgb(var(--status-neutral-bg));
+    color: rgb(var(--status-neutral-text));
+    border-color: rgb(var(--status-neutral-border));
+  }
 }
 
 @media print {
   body * { visibility: hidden; }
   #receipt-print-area, #receipt-print-area * { visibility: visible; }
-  #receipt-print-area {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 80mm;
-  }
+  #receipt-print-area { position: absolute; top: 0; left: 0; width: 80mm; }
   @page { margin: 4mm; }
 }
 
@@ -51,4 +129,269 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   THEME OVERRIDES  (html.theme-* > html)
+   Every theme must reset ALL variables so switching from dark→light works
+   ═══════════════════════════════════════════════════════════════ */
+
+html.theme-sunset-paprika {
+  --color-primary-500: 193 68 14; --color-primary-600: 166 58 11; --color-primary-700: 138 48 9;
+  --color-primary-300: 231 154 103; --color-primary-100: 250 224 208; --color-primary-50: 253 241 234;
+  --color-canvas-50: 245 246 247; --color-canvas-100: 238 240 242; --color-canvas-200: 228 231 234;
+  --color-ink-950: 21 23 27; --color-ink-900: 27 30 35; --color-ink-800: 34 38 45;
+  --color-ink-700: 44 49 56; --color-ink-600: 58 65 75; --color-ink-500: 78 86 97;
+  --surface-page: 245 246 247; --surface-card: 255 255 255; --surface-sidebar: 27 30 35;
+  --surface-topbar: 255 255 255; --surface-input: 255 255 255;
+  --surface-table-header: 238 240 242; --surface-table-row: 255 255 255; --surface-table-hover: 245 246 247;
+  --text-base: 27 30 35; --text-muted: 78 86 97; --text-inverse: 255 255 255;
+  --border-default: 228 231 234;
+}
+
+html.theme-emerald-basil {
+  --color-primary-500: 34 139 34; --color-primary-600: 25 110 25; --color-primary-700: 18 82 18;
+  --color-primary-300: 90 185 90; --color-primary-100: 187 230 187; --color-primary-50: 235 248 235;
+  --color-canvas-50: 245 246 247; --color-canvas-100: 238 240 242; --color-canvas-200: 228 231 234;
+  --color-ink-950: 21 23 27; --color-ink-900: 27 30 35; --color-ink-800: 34 38 45;
+  --color-ink-700: 44 49 56; --color-ink-600: 58 65 75; --color-ink-500: 78 86 97;
+  --surface-page: 245 246 247; --surface-card: 255 255 255; --surface-sidebar: 22 38 25;
+  --surface-topbar: 255 255 255; --surface-input: 255 255 255;
+  --surface-table-header: 238 240 242; --surface-table-row: 255 255 255; --surface-table-hover: 240 248 240;
+  --text-base: 27 30 35; --text-muted: 78 86 97; --text-inverse: 255 255 255;
+  --border-default: 228 231 234;
+}
+
+html.theme-royal-saffron {
+  --color-primary-500: 201 138 5; --color-primary-600: 172 116 4; --color-primary-700: 142 94 3;
+  --color-primary-300: 240 196 93; --color-primary-100: 252 238 206; --color-primary-50: 254 249 237;
+  --color-canvas-50: 250 248 240; --color-canvas-100: 245 241 225; --color-canvas-200: 235 228 200;
+  --color-ink-950: 21 23 27; --color-ink-900: 27 30 35; --color-ink-800: 34 38 45;
+  --color-ink-700: 44 49 56; --color-ink-600: 58 65 75; --color-ink-500: 78 86 97;
+  --surface-page: 250 248 240; --surface-card: 255 255 255; --surface-sidebar: 36 28 8;
+  --surface-topbar: 255 255 255; --surface-input: 255 255 255;
+  --surface-table-header: 245 241 225; --surface-table-row: 255 255 255; --surface-table-hover: 250 246 232;
+  --text-base: 27 30 35; --text-muted: 78 86 97; --text-inverse: 255 255 255;
+  --border-default: 235 228 200;
+}
+
+html.theme-ocean-wave {
+  --color-primary-500: 37 109 178; --color-primary-600: 28 87 145; --color-primary-700: 20 66 112;
+  --color-primary-300: 114 169 224; --color-primary-100: 218 233 247; --color-primary-50: 240 246 252;
+  --color-canvas-50: 241 246 251; --color-canvas-100: 225 235 247; --color-canvas-200: 200 220 240;
+  --color-ink-950: 21 23 27; --color-ink-900: 27 30 35; --color-ink-800: 34 38 45;
+  --color-ink-700: 44 49 56; --color-ink-600: 58 65 75; --color-ink-500: 78 86 97;
+  --surface-page: 241 246 251; --surface-card: 255 255 255; --surface-sidebar: 12 28 52;
+  --surface-topbar: 255 255 255; --surface-input: 255 255 255;
+  --surface-table-header: 225 235 247; --surface-table-row: 255 255 255; --surface-table-hover: 235 244 252;
+  --text-base: 27 30 35; --text-muted: 78 86 97; --text-inverse: 255 255 255;
+  --border-default: 200 220 240;
+}
+
+html.theme-rose-berry {
+  --color-primary-500: 199 44 76; --color-primary-600: 171 31 59; --color-primary-700: 140 20 44;
+  --color-primary-300: 235 143 159; --color-primary-100: 250 222 227; --color-primary-50: 253 242 244;
+  --color-canvas-50: 250 244 246; --color-canvas-100: 246 235 238; --color-canvas-200: 238 218 224;
+  --color-ink-950: 21 23 27; --color-ink-900: 27 30 35; --color-ink-800: 34 38 45;
+  --color-ink-700: 44 49 56; --color-ink-600: 58 65 75; --color-ink-500: 78 86 97;
+  --surface-page: 250 244 246; --surface-card: 255 255 255; --surface-sidebar: 40 12 22;
+  --surface-topbar: 255 255 255; --surface-input: 255 255 255;
+  --surface-table-header: 246 235 238; --surface-table-row: 255 255 255; --surface-table-hover: 252 244 246;
+  --text-base: 27 30 35; --text-muted: 78 86 97; --text-inverse: 255 255 255;
+  --border-default: 238 218 224;
+}
+
+html.theme-dark-charcoal {
+  color-scheme: dark;
+  --color-primary-500: 242 107 39; --color-primary-600: 247 131 73; --color-primary-700: 250 157 110;
+  --color-primary-300: 220 95 34; --color-primary-100: 82 38 16; --color-primary-50: 58 29 14;
+  --color-canvas-50: 14 14 16; --color-canvas-100: 22 22 26; --color-canvas-200: 36 36 44;
+  --color-ink-950: 245 246 247; --color-ink-900: 230 232 236; --color-ink-800: 200 204 212;
+  --color-ink-700: 160 168 180; --color-ink-600: 120 128 140; --color-ink-500: 90 97 110;
+  --surface-page: 14 14 16; --surface-card: 22 22 26; --surface-sidebar: 10 10 12;
+  --surface-topbar: 22 22 26; --surface-input: 32 32 38;
+  --surface-table-header: 28 28 34; --surface-table-row: 22 22 26; --surface-table-hover: 32 32 38;
+  --text-base: 230 232 236; --text-muted: 130 138 150; --text-inverse: 18 18 22;
+  --border-default: 44 44 52;
+
+  --status-danger-bg: 69 10 10;
+  --status-danger-text: 248 113 113;
+  --status-danger-border: 127 29 29;
+  --status-warning-bg: 69 26 3;
+  --status-warning-text: 251 191 36;
+  --status-warning-border: 120 53 15;
+  --status-success-bg: 2 44 34;
+  --status-success-text: 52 211 153;
+  --status-success-border: 6 78 59;
+  --status-info-bg: 23 37 84;
+  --status-info-text: 96 165 250;
+  --status-info-border: 30 58 138;
+  --status-special-bg: 74 4 78;
+  --status-special-text: 232 121 249;
+  --status-special-border: 112 26 117;
+  --status-neutral-bg: var(--surface-card);
+  --status-neutral-text: var(--text-muted);
+  --status-neutral-border: var(--border-default);
+}
+
+html.theme-midnight-indigo {
+  color-scheme: dark;
+  --color-primary-500: 99 102 241; --color-primary-600: 129 140 248; --color-primary-700: 165 180 252;
+  --color-primary-300: 143 120 231; --color-primary-100: 67 51 122; --color-primary-50: 46 36 85;
+  --color-canvas-50: 8 8 18; --color-canvas-100: 16 16 30; --color-canvas-200: 30 30 54;
+  --color-ink-950: 245 246 250; --color-ink-900: 220 224 240; --color-ink-800: 185 192 215;
+  --color-ink-700: 145 155 185; --color-ink-600: 110 118 145; --color-ink-500: 80 88 115;
+  --surface-page: 8 8 18; --surface-card: 16 16 30; --surface-sidebar: 6 6 14;
+  --surface-topbar: 16 16 30; --surface-input: 26 26 46;
+  --surface-table-header: 20 20 38; --surface-table-row: 16 16 30; --surface-table-hover: 26 26 46;
+  --text-base: 220 224 240; --text-muted: 110 118 145; --text-inverse: 8 8 18;
+  --border-default: 36 36 68;
+
+  --status-danger-bg: 69 10 10;
+  --status-danger-text: 248 113 113;
+  --status-danger-border: 127 29 29;
+  --status-warning-bg: 69 26 3;
+  --status-warning-text: 251 191 36;
+  --status-warning-border: 120 53 15;
+  --status-success-bg: 2 44 34;
+  --status-success-text: 52 211 153;
+  --status-success-border: 6 78 59;
+  --status-info-bg: 23 37 84;
+  --status-info-text: 96 165 250;
+  --status-info-border: 30 58 138;
+  --status-special-bg: 74 4 78;
+  --status-special-text: 232 121 249;
+  --status-special-border: 112 26 117;
+  --status-neutral-bg: var(--surface-card);
+  --status-neutral-text: var(--text-muted);
+  --status-neutral-border: var(--border-default);
+}
+
+html.theme-nordic-slate {
+  --color-primary-500: 84 98 111; --color-primary-600: 68 80 92; --color-primary-700: 52 62 72;
+  --color-primary-300: 144 156 168; --color-primary-100: 226 230 234; --color-primary-50: 241 243 245;
+  --color-canvas-50: 248 249 250; --color-canvas-100: 241 243 245; --color-canvas-200: 233 236 239;
+  --color-ink-950: 21 23 27; --color-ink-900: 27 30 35; --color-ink-800: 34 38 45;
+  --color-ink-700: 44 49 56; --color-ink-600: 58 65 75; --color-ink-500: 78 86 97;
+  --surface-page: 248 249 250; --surface-card: 255 255 255; --surface-sidebar: 26 34 42;
+  --surface-topbar: 255 255 255; --surface-input: 255 255 255;
+  --surface-table-header: 241 243 245; --surface-table-row: 255 255 255; --surface-table-hover: 248 249 250;
+  --text-base: 27 30 35; --text-muted: 78 86 97; --text-inverse: 255 255 255;
+  --border-default: 226 230 234;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GLOBAL SEMANTIC OVERRIDES — apply surface tokens to key elements
+   ═══════════════════════════════════════════════════════════════ */
+
+body, #root {
+  background-color: rgb(var(--surface-page));
+  color: rgb(var(--text-base));
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ── Dark-mode: bg-white panels ── */
+html.theme-dark-charcoal .bg-white,
+html.theme-midnight-indigo .bg-white {
+  background-color: rgb(var(--surface-card)) !important;
+  color: rgb(var(--text-base)) !important;
+  border-color: rgb(var(--border-default)) !important;
+}
+
+/* ── Dark-mode: canvas background classes ── */
+html.theme-dark-charcoal .bg-canvas-50,
+html.theme-midnight-indigo .bg-canvas-50 {
+  background-color: rgb(var(--surface-page)) !important;
+}
+html.theme-dark-charcoal .bg-canvas-100,
+html.theme-midnight-indigo .bg-canvas-100 {
+  background-color: rgb(var(--surface-card)) !important;
+}
+html.theme-dark-charcoal .bg-canvas-200,
+html.theme-midnight-indigo .bg-canvas-200 {
+  background-color: rgb(var(--surface-table-header)) !important;
+}
+html.theme-dark-charcoal .bg-canvas-300,
+html.theme-midnight-indigo .bg-canvas-300 {
+  background-color: rgb(var(--surface-input)) !important;
+}
+html.theme-dark-charcoal .hover\:bg-canvas-200:hover,
+html.theme-midnight-indigo .hover\:bg-canvas-200:hover {
+  background-color: rgb(var(--surface-table-header)) !important;
+}
+html.theme-dark-charcoal .hover\:bg-canvas-300:hover,
+html.theme-midnight-indigo .hover\:bg-canvas-300:hover {
+  background-color: rgb(var(--surface-input)) !important;
+}
+
+/* ── Dark-mode: text ── */
+html.theme-dark-charcoal .text-ink-900,
+html.theme-dark-charcoal .text-ink-800,
+html.theme-midnight-indigo .text-ink-900,
+html.theme-midnight-indigo .text-ink-800 {
+  color: rgb(var(--text-base)) !important;
+}
+html.theme-dark-charcoal .text-ink-600,
+html.theme-dark-charcoal .text-ink-500,
+html.theme-midnight-indigo .text-ink-600,
+html.theme-midnight-indigo .text-ink-500 {
+  color: rgb(var(--text-muted)) !important;
+}
+
+/* ── Dark-mode: all inputs, selects, textareas ── */
+html.theme-dark-charcoal input:not([type="checkbox"]):not([type="radio"]),
+html.theme-dark-charcoal select,
+html.theme-dark-charcoal textarea,
+html.theme-midnight-indigo input:not([type="checkbox"]):not([type="radio"]),
+html.theme-midnight-indigo select,
+html.theme-midnight-indigo textarea {
+  background-color: rgb(var(--surface-input)) !important;
+  color: rgb(var(--text-base)) !important;
+  border-color: rgb(var(--border-default)) !important;
+}
+
+/* ── Dark-mode: tables ── */
+html.theme-dark-charcoal thead th,
+html.theme-midnight-indigo thead th {
+  background-color: rgb(var(--surface-table-header)) !important;
+  color: rgb(var(--text-base)) !important;
+  border-color: rgb(var(--border-default)) !important;
+}
+html.theme-dark-charcoal tbody td,
+html.theme-midnight-indigo tbody td {
+  color: rgb(var(--text-base)) !important;
+  border-color: rgb(var(--border-default)) !important;
+}
+html.theme-dark-charcoal tbody tr:hover td,
+html.theme-midnight-indigo tbody tr:hover td {
+  background-color: rgb(var(--surface-table-hover)) !important;
+}
+
+/* ── Dark-mode: borders ── */
+html.theme-dark-charcoal .border-canvas-200,
+html.theme-midnight-indigo .border-canvas-200 {
+  border-color: rgb(var(--border-default)) !important;
+}
+
+/* ── Dark-mode: modals ── */
+html.theme-dark-charcoal [role="dialog"],
+html.theme-midnight-indigo [role="dialog"] {
+  background-color: rgb(var(--surface-card)) !important;
+  color: rgb(var(--text-base)) !important;
+}
+
+/* ── Dark-mode: dropdowns ── */
+html.theme-dark-charcoal [role="listbox"],
+html.theme-dark-charcoal [role="menu"],
+html.theme-midnight-indigo [role="listbox"],
+html.theme-midnight-indigo [role="menu"] {
+  background-color: rgb(var(--surface-card)) !important;
+  border-color: rgb(var(--border-default)) !important;
+}
+
+/* Global smooth transition on theme switch */
+*, *::before, *::after {
+  transition-property: background-color, color, border-color, box-shadow;
+  transition-duration: 0.18s;
+  transition-timing-function: ease;
 }

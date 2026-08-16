@@ -2,19 +2,21 @@ import api from "./client";
 
 export async function generateReportData(reportType, range) {
   // Fetch all necessary data
-  const [orders, orderItems, expenses, inventoryItems, purchaseOrders, suppliers] = await Promise.all([
+  const [orders, orderItems, expenses, inventoryItems, purchaseOrders, suppliers, journalEntries] = await Promise.all([
     api.list("orders"),
     api.list("order_items"),
     api.list("expenses"),
     api.list("inventory"), // assuming entity is inventory or inventory_items. Wait, in client.js it might be inventoryItems. Let's use 'inventory' and handle it if undefined.
     api.list("purchase_orders").catch(() => []), // Provide fallback
-    api.list("suppliers").catch(() => [])
+    api.list("suppliers").catch(() => []),
+    api.list("journal_entries").catch(() => [])
   ]);
 
   // Apply Date Filtering to time-series data
   const filteredOrders = filterByRange(orders, range);
   const filteredExpenses = filterByRange(expenses, range);
   const filteredPO = filterByRange(purchaseOrders, range);
+  const filteredJournal = filterByRange(journalEntries, range);
 
   // We need filtered order_items. We'll map them from filtered orders.
   // Actually, order_items in mockData are just a pool, but in reality they are linked to orders.
@@ -64,7 +66,7 @@ export async function generateReportData(reportType, range) {
     case "Supplier Report":
       return generateSupplierReport(suppliers);
     case "Profit Report":
-      return generateProfitReport(filteredOrders, filteredExpenses);
+      return generateProfitReport(filteredOrders, filteredExpenses, filteredJournal);
     case "Tax Report":
       return generateTaxReport(filteredOrders);
     default:
@@ -241,11 +243,11 @@ function generateSupplierReport(suppliers) {
   return { chartType: "bar", dataKey: "due_amount", data: mapped.filter(m => m.due_amount > 0) };
 }
 
-function generateProfitReport(orders, expenses) {
+function generateProfitReport(orders, expenses, journalEntries) {
   let revenue = 0;
   orders.forEach(o => {
     if (["paid", "completed", "served"].includes(o.status)) {
-      revenue += Number(o.total || 0);
+      revenue += Number(o.total || 0) - Number(o.tax || 0) - Number(o.service_charge || 0);
     }
   });
 
@@ -254,7 +256,18 @@ function generateProfitReport(orders, expenses) {
     totalExp += Number(e.amount || 0);
   });
 
-  const cogs = Math.round(revenue * 0.3); // 30% est
+  let cogs = 0;
+  if (journalEntries && journalEntries.length > 0) {
+    journalEntries.forEach(j => {
+      if (j.account_code === '5001') {
+        cogs += Number(j.debit || 0) - Number(j.credit || 0);
+      }
+    });
+  } else {
+    // Fallback if no journal entries
+    cogs = 0;
+  }
+
   const gross = revenue - cogs;
   const net = gross - totalExp;
 
@@ -275,9 +288,8 @@ function generateTaxReport(orders) {
 
   orders.forEach(o => {
     if (["paid", "completed", "served"].includes(o.status)) {
-      // Mock data might not have a separate tax field, we will estimate 16% GST
       const orderTotal = Number(o.total || 0);
-      const tax = Math.round(orderTotal * 0.16);
+      const tax = Number(o.tax || 0);
       totalTax += tax;
       taxableRevenue += orderTotal;
     }
@@ -285,7 +297,7 @@ function generateTaxReport(orders) {
 
   const data = [
     { label: "Taxable Revenue", value: taxableRevenue },
-    { label: "GST Collected (Est. 16%)", value: totalTax }
+    { label: "GST Collected", value: totalTax }
   ];
 
   return { chartType: "pie", dataKey: "value", data };

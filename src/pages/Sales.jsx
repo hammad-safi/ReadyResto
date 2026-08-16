@@ -625,7 +625,7 @@ export default function Sales({ onNewSale }) {
             </div>
           </div>
 
-          <div className="rounded-xl bg-ink-900 text-white px-4 py-4 space-y-2">
+          <div className="rounded-xl bg-[rgb(var(--surface-sidebar))] text-white px-4 py-4 space-y-2">
             <div className="flex justify-between text-sm text-white/70"><span>Subtotal</span><span className="font-mono">Rs. {adjTotals.subtotal.toLocaleString()}</span></div>
             {adjustForm.discount_percent > 0 && <div className="flex justify-between text-sm text-basil-300"><span>Discount ({adjustForm.discount_percent}%)</span><span className="font-mono">- Rs. {adjTotals.discountAmount.toLocaleString()}</span></div>}
             {Number(adjustForm.tax) > 0 && <div className="flex justify-between text-sm text-white/70"><span>Tax</span><span className="font-mono">Rs. {Number(adjustForm.tax).toLocaleString()}</span></div>}

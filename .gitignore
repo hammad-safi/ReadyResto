@@ -8,3 +8,7 @@ coverage/
 release/
 *.mp3
 
+
+release/
+*.mp3
+

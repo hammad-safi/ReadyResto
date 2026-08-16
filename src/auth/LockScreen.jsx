@@ -10,25 +10,25 @@ function PinPad({ onPress, onClear, onBack }) {
         <button
           key={n}
           onClick={() => onPress(String(n))}
-          className="h-14 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xl font-semibold
-                     border border-white/10 transition-all duration-100 active:scale-95 select-none"
+          className="h-14 rounded-xl bg-canvas-100 hover:bg-canvas-200 active:bg-canvas-300 text-ink-900 text-xl font-semibold
+                     border border-canvas-200 transition-all duration-100 active:scale-95 select-none"
         >
           {n}
         </button>
       ))}
       <button onClick={onClear}
-        className="h-14 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 text-xs font-semibold
-                   border border-white/10 transition-all duration-100 active:scale-95 select-none">
+        className="h-14 rounded-xl bg-canvas-100 hover:bg-canvas-200 text-ink-600 text-xs font-semibold
+                   border border-canvas-200 transition-all duration-100 active:scale-95 select-none">
         CLR
       </button>
       <button onClick={() => onPress("0")}
-        className="h-14 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xl font-semibold
-                   border border-white/10 transition-all duration-100 active:scale-95 select-none">
+        className="h-14 rounded-xl bg-canvas-100 hover:bg-canvas-200 text-ink-900 text-xl font-semibold
+                   border border-canvas-200 transition-all duration-100 active:scale-95 select-none">
         0
       </button>
       <button onClick={onBack}
-        className="h-14 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10
-                   flex items-center justify-center text-white/70 transition-all duration-100 active:scale-95 select-none">
+        className="h-14 rounded-xl bg-canvas-100 hover:bg-canvas-200 border border-canvas-200
+                   flex items-center justify-center text-ink-600 transition-all duration-100 active:scale-95 select-none">
         <Delete size={20} />
       </button>
     </div>
@@ -99,7 +99,7 @@ export default function LockScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-ink-950 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-canvas-50 flex items-center justify-center p-4 relative overflow-hidden">
       {/* Decorative blobs */}
       <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-paprika-600/20 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 w-[400px] h-[400px] bg-saffron-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -108,7 +108,7 @@ export default function LockScreen() {
         className={`relative w-full max-w-sm ${shake ? "" : ""}`}
         style={shake ? { animation: "shake 0.5s ease" } : {}}
       >
-        <div className="bg-white/[0.06] backdrop-blur-xl border border-white/10 rounded-3xl p-7 shadow-2xl">
+        <div className="bg-white border border-canvas-200 rounded-3xl p-7 shadow-2xl">
           {/* Logo */}
           <div className="flex justify-center mb-5">
             <div className="h-12 w-12 rounded-2xl bg-paprika-500 flex items-center justify-center shadow-lg shadow-paprika-500/30">
@@ -118,14 +118,14 @@ export default function LockScreen() {
 
           {/* Locked user info */}
           <div className="flex flex-col items-center mb-6">
-            <div className="h-16 w-16 rounded-full bg-saffron-400/20 border-2 border-saffron-400/30 flex items-center justify-center text-saffron-300 text-xl font-bold mb-3">
+            <div className="h-16 w-16 rounded-full bg-saffron-400/20 border-2 border-saffron-400/30 flex items-center justify-center text-saffron-600 text-xl font-bold mb-3">
               {user?.profile_photo ? (
                 <img src={user.profile_photo} alt={user.name} className="h-full w-full rounded-full object-cover" />
               ) : initials}
             </div>
-            <p className="font-display font-semibold text-white">{user?.name || "User"}</p>
-            <span className="text-xs text-white/40 mt-0.5 bg-white/10 rounded-full px-2.5 py-0.5">{user?.role}</span>
-            <p className="text-xs text-white/40 mt-3">Screen is locked — enter your PIN to continue</p>
+            <p className="font-display font-semibold text-ink-900">{user?.name || "User"}</p>
+            <span className="text-xs text-ink-500 mt-0.5 bg-canvas-100 rounded-full px-2.5 py-0.5 border border-canvas-200">{user?.role}</span>
+            <p className="text-xs text-ink-500 mt-3 text-center">Screen is locked — enter your PIN to continue</p>
           </div>
 
           {/* PIN dots */}
@@ -133,7 +133,7 @@ export default function LockScreen() {
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i}
                 className={`h-3 w-3 rounded-full border transition-all duration-200 ${
-                  i < pin.length ? "bg-paprika-400 border-paprika-400 scale-110" : "border-white/30"
+                  i < pin.length ? "bg-paprika-500 border-paprika-500 scale-110" : "bg-canvas-100 border-canvas-200"
                 }`}
               />
             ))}
@@ -143,7 +143,7 @@ export default function LockScreen() {
 
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <RefreshCw size={22} className="text-white/60 animate-spin" />
+              <RefreshCw size={22} className="text-ink-400 animate-spin" />
             </div>
           ) : (
             <PinPad
@@ -165,7 +165,7 @@ export default function LockScreen() {
           {/* Switch user */}
           <button
             onClick={logout}
-            className="w-full mt-3 py-2.5 rounded-xl border border-white/10 text-white/50 hover:text-white/80 hover:bg-white/5
+            className="w-full mt-3 py-2.5 rounded-xl border border-canvas-200 text-ink-500 hover:text-ink-700 hover:bg-canvas-100
                        text-xs font-medium transition-all duration-200 flex items-center justify-center gap-2"
           >
             <LogOut size={13} />

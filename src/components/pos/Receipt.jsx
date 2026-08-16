@@ -10,9 +10,9 @@ export default function Receipt({ order, items, profile, onClose, refundLines = 
   const handlePrint = () => window.print();
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 print:p-0 print:static print:block">
-      <div className="absolute inset-0 bg-ink-950/60 print:hidden" onClick={onClose} />
-      <div className="relative w-full max-w-sm bg-white rounded-xl2 shadow-card flex flex-col max-h-[92vh] print:max-h-none print:shadow-none print:rounded-none print:w-[80mm] print:max-w-none">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 print:p-0 print:absolute print:top-0 print:left-0 print:block">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity print:hidden" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-[rgb(var(--surface-card))] border border-canvas-200 print:border-none print:bg-white rounded-xl2 shadow-card flex flex-col max-h-[92vh] print:max-h-none print:shadow-none print:rounded-none print:w-[80mm] print:max-w-none print:static">
         <div className="flex items-center justify-between px-4 py-3 border-b border-canvas-200 print:hidden shrink-0">
           <h3 className="font-display font-semibold text-ink-900 text-sm">Receipt — {order.id}</h3>
           <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-ink-500 hover:bg-canvas-100">
@@ -22,16 +22,25 @@ export default function Receipt({ order, items, profile, onClose, refundLines = 
 
         <div id="receipt-print-area" className="overflow-y-auto px-6 py-5 font-mono text-[12px] leading-relaxed text-ink-800">
           <div className="text-center mb-3">
-            {profile?.logo ? (
-              <img src={profile.logo} alt="logo" className="h-12 mx-auto mb-2 object-contain" />
-            ) : (
-              <div className="h-10 w-10 rounded-lg bg-paprika-500 text-white flex items-center justify-center font-display font-bold text-lg mx-auto mb-2">
-                {(profile?.name || "R")[0]}
-              </div>
+            {profile?.showLogo !== false && (
+              profile?.logo ? (
+                <img src={profile.logo} alt="logo" className="h-12 mx-auto mb-2 object-contain" />
+              ) : (
+                <div className="h-10 w-10 rounded-lg bg-paprika-500 text-white flex items-center justify-center font-display font-bold text-lg mx-auto mb-2">
+                  {(profile?.name || "R")[0]}
+                </div>
+              )
             )}
-            <p className="font-display font-semibold text-sm text-ink-900">{profile?.name || "Restaurant"}</p>
+            <p className="font-display font-bold text-sm text-ink-900">{profile?.name || "Restaurant"}</p>
+            {profile?.tagline && <p className="text-[10px] text-ink-500 italic mb-0.5">{profile.tagline}</p>}
             {profile?.address && <p className="text-[11px] text-ink-500">{profile.address}</p>}
-            {profile?.phone && <p className="text-[11px] text-ink-500">{profile.phone}</p>}
+            {profile?.phone && <p className="text-[11px] text-ink-500">Ph: {profile.phone}</p>}
+            {profile?.ntn && <p className="text-[10px] text-ink-400 font-mono">NTN: {profile.ntn}</p>}
+            {profile?.showOwnerInfo && profile?.ownerName && (
+              <p className="text-[10px] text-ink-500 mt-1 pt-0.5 border-t border-dotted border-ink-200">
+                Proprietor: {profile.ownerName} {profile.ownerPhone ? `· ${profile.ownerPhone}` : ""}
+              </p>
+            )}
           </div>
 
           <div className="border-t border-dashed border-ink-300 my-2" />
@@ -79,14 +88,36 @@ export default function Receipt({ order, items, profile, onClose, refundLines = 
             <span>Rs. {Number(order.total).toLocaleString()}</span>
           </div>
 
-          {order.payment_method && (
-            <>
-              <div className="border-t border-dashed border-ink-300 my-2" />
-              <div className="flex justify-between"><span>Paid via</span><span>{order.payment_method}</span></div>
-              {order.tendered != null && <div className="flex justify-between"><span>Tendered</span><span>Rs. {Number(order.tendered).toLocaleString()}</span></div>}
-              {order.change_due != null && order.change_due > 0 && <div className="flex justify-between"><span>Change</span><span>Rs. {Number(order.change_due).toLocaleString()}</span></div>}
-            </>
-          )}
+          {order.payment_method && (() => {
+            let splitDetails = null;
+            try {
+              if (order.payment_details && order.payment_details.startsWith("[")) {
+                splitDetails = JSON.parse(order.payment_details);
+              }
+            } catch (_) {}
+
+            return (
+              <>
+                <div className="border-t border-dashed border-ink-300 my-2" />
+                <div className="flex justify-between"><span>Paid via</span><span>{splitDetails ? "Split Payment" : order.payment_method}</span></div>
+                {splitDetails ? (
+                  <div className="pl-2 space-y-0.5 text-ink-600 text-[11px] mt-1 border-l border-dashed border-canvas-300">
+                    {splitDetails.map((s, idx) => (
+                      <div key={idx} className="flex justify-between">
+                        <span>• {s.method}</span>
+                        <span>Rs. {Number(s.amount || 0).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    {order.tendered != null && <div className="flex justify-between"><span>Tendered</span><span>Rs. {Number(order.tendered).toLocaleString()}</span></div>}
+                    {order.change_due != null && order.change_due > 0 && <div className="flex justify-between"><span>Change</span><span>Rs. {Number(order.change_due).toLocaleString()}</span></div>}
+                  </>
+                )}
+              </>
+            );
+          })()}
 
           {refundLines.length > 0 && (
             <>
