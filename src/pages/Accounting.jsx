@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../components/ui/PageHeader";
+import { useDialog } from "../context/DialogContext";
 import StatCard from "../components/ui/StatCard";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import api from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useDashboardFilters } from "../context/DashboardFilterContext";
+import { useDataCache } from "../context/DataCacheContext";
 import { 
+import DatePicker from "../components/ui/DatePicker";
   BookOpen, TrendingUp, TrendingDown, DollarSign, BarChart3, Building2, 
   CreditCard, Plus, Edit3, Trash2, Search, Filter, Calendar, ChevronDown, 
   Wallet, PiggyBank, ArrowUpRight, ArrowDownRight, FileText, Layers, Scale, 
@@ -15,6 +19,49 @@ import {
 } from "lucide-react";
 
 // --- Helpers ---
+const parseDate = (v) => {
+  if (!v) return null;
+  if (v instanceof Date) return v;
+  if (typeof v === 'number') return new Date(v < 1e12 ? v * 1000 : v);
+  if (typeof v === 'string') {
+    const cleaned = v.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+      const parts = cleaned.split('-');
+      return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    }
+    const n = Number(v);
+    if (!Number.isNaN(n)) return new Date(n < 1e12 ? n * 1000 : n);
+    const d = new Date(v);
+    if (!Number.isNaN(d.getTime())) return d;
+    const fallback = new Date(cleaned.replace(" ", "T"));
+    return Number.isNaN(fallback.getTime()) ? null : fallback;
+  }
+  return null;
+};
+
+const getOrderDate = (order) => {
+  const candidates = [order?.created_at, order?.createdAt, order?.date, order?.order_date, order?.time];
+  for (const value of candidates) {
+    if (!value) continue;
+    if (typeof value === "string") {
+      const direct = parseDate(value);
+      if (direct) return direct;
+      const timeMatch = value.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i);
+      if (timeMatch) {
+        const now = new Date();
+        const hour = Number(timeMatch[1]);
+        const minute = Number(timeMatch[2] || 0);
+        const period = timeMatch[3]?.toUpperCase();
+        const normalizedHour = period === "PM" && hour < 12 ? hour + 12 : period === "AM" && hour === 12 ? 0 : hour;
+        const fallback = new Date(now);
+        fallback.setHours(normalizedHour, minute, 0, 0);
+        return fallback;
+      }
+    }
+  }
+  return null;
+};
+
 const formatCurrency = (amount) => `Rs. ${Number(amount || 0).toLocaleString()}`;
 const TABS = ["Dashboard Overview", "Chart of Accounts", "Journal Entries", "General Ledger", "Financial Statements", "Bank Accounts"];
 const ACCOUNT_TYPES = ["Asset", "Liability", "Equity", "Income", "Expense"];
@@ -98,47 +145,76 @@ function SearchableSelect({ value, onChange, options, placeholder = "Select...",
   );
 }
 
-function DashboardOverview({ accounts, journal, orders, expenses, customers, suppliers }) {
+function getOrderSaleValue(order) {
+  if (order.status !== "paid") return 0;
+  return Number(order.total || 0) - Number(order.tax || 0) - Number(order.service_charge || 0) - Number(order.refunded_total || 0);
+}
+
+function DashboardOverview({ journal, fullJournal, orders, expenses, orderItems, menuItems }) {
   const stats = useMemo(() => {
-    const revenue = orders
-      .filter(o => ["paid", "completed", "served"].includes(o.status))
-      .reduce((sum, o) => sum + (Number(o.total) - Number(o.refunded_total || 0)), 0);
+    // 1. Revenue
+    const paidOrders = orders.filter(o => o.status === "paid");
+    const revenue = paidOrders.reduce((sum, o) => sum + getOrderSaleValue(o), 0);
 
-    const cogs = journal
-      .filter(j => j.account_code === "5001" || j.account_name?.toLowerCase().includes("cost of goods sold"))
-      .reduce((sum, j) => sum + (Number(j.debit || 0) - Number(j.credit || 0)), 0);
+    // 2. COGS (using the same estimate logic as Dashboard.jsx)
+    const currentOrderIds = new Set(paidOrders.map(o => o.id));
+    let cogs = 0;
+    (orderItems || []).forEach(item => {
+      if (currentOrderIds.has(item.order_id)) {
+        const snapshottedCost = Number(item.cost || 0);
+        if (snapshottedCost > 0) {
+          cogs += snapshottedCost * Number(item.qty || 1);
+        } else {
+          const mi = (menuItems || []).find(m => String(m.id) === String(item.menu_item_id) || (m.name || "").toLowerCase() === (item.name || "").toLowerCase());
+          if (mi && mi.cost) {
+            cogs += Number(mi.cost) * Number(item.qty || 1);
+          } else {
+            cogs += (Number(item.price || 0) * 0.35) * Number(item.qty || 1);
+          }
+        }
+      }
+    });
+    cogs = Math.round(cogs);
 
-    const grossProfit = revenue - cogs;
+    // 3. Gross Profit
+    const taxAndServiceTotal = paidOrders.reduce((s, o) => s + Number(o.tax || 0) + Number(o.service_charge || 0), 0);
+    const grossProfit = revenue - taxAndServiceTotal - cogs;
 
+    // 4. Net Profit
     const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
     const netProfit = grossProfit - totalExpenses;
 
-    const cashJournal = journal.filter(j => j.account_code === "1001" || j.account_name?.toLowerCase().includes("cash"));
+    // 5. Cash Position (1001 & 1002) - Uses FULL journal, not date filtered
     let cashPos = 0;
-    if (cashJournal.length > 0) {
-      cashPos = cashJournal.reduce((sum, j) => sum + (Number(j.debit || 0) - Number(j.credit || 0)), 0);
-    } else {
-      const cashOrders = orders.filter(o => ["paid", "completed"].includes(o.status) && (o.payment_method?.includes("Cash") || !o.payment_method));
-      const cashIn = cashOrders.reduce((sum, o) => sum + Number(o.total), 0);
-      cashPos = cashIn - totalExpenses;
-    }
+    (fullJournal || []).forEach(je => {
+      if (je.account_code === '1001' || je.account_code === '1002') {
+        cashPos += (Number(je.debit || 0) - Number(je.credit || 0));
+      }
+    });
 
-    const ar = customers.reduce((sum, c) => sum + Number(c.credit || 0), 0);
-    const ap = suppliers.reduce((sum, s) => sum + Number(s.due || 0), 0);
+    // 6. Accounts Receivable (1003) - Uses FULL journal
+    let ar = 0;
+    (fullJournal || []).forEach(je => {
+      if (je.account_code === '1003') {
+        ar += (Number(je.debit || 0) - Number(je.credit || 0));
+      }
+    });
+
+    // 7. Accounts Payable (2001) - Uses FULL journal
+    let ap = 0;
+    (fullJournal || []).forEach(je => {
+      if (je.account_code === '2001') {
+        ap += (Number(je.credit || 0) - Number(je.debit || 0));
+      }
+    });
 
     return { revenue, cogs, grossProfit, totalExpenses, netProfit, cashPos, ar, ap };
-  }, [journal, orders, expenses, customers, suppliers]);
+  }, [fullJournal, orders, expenses, orderItems, menuItems]);
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold text-ink-900">Financial Overview</h3>
-        <select className="border border-canvas-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-paprika-500">
-          <option>Today</option>
-          <option>This Week</option>
-          <option>This Month</option>
-          <option>Custom</option>
-        </select>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -187,6 +263,7 @@ function DashboardOverview({ accounts, journal, orders, expenses, customers, sup
 }
 
 function ChartOfAccounts({ accounts, onRefresh }) {
+  const { alert, confirm } = useDialog();
   const [filterType, setFilterType] = useState("All");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -216,7 +293,7 @@ function ChartOfAccounts({ accounts, onRefresh }) {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this account?")) {
+    if (await confirm("Are you sure you want to delete this account?")) {
       await api.update("accounts", id, { is_active: 0 });
       onRefresh();
     }
@@ -334,11 +411,12 @@ function ChartOfAccounts({ accounts, onRefresh }) {
 }
 
 function JournalEntries({ journal, accounts, onRefresh }) {
+  const { alert, confirm } = useDialog();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [search, setSearch] = useState("");
   
   // New Entry State
-  const [entryDate, setEntryDate] = useState(new Date().toISOString().split("T")[0]);
+  const [entryDate, setEntryDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [entryDesc, setEntryDesc] = useState("");
   const [rows, setRows] = useState([
     { id: 1, account_id: "", debit: "", credit: "" },
@@ -369,10 +447,10 @@ function JournalEntries({ journal, accounts, onRefresh }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!isBalanced) return alert("Total Debit must equal Total Credit.");
+    if (!isBalanced) return await alert("Total Debit must equal Total Credit.");
     
     const validRows = rows.filter(r => r.account_id && (Number(r.debit) > 0 || Number(r.credit) > 0));
-    if (validRows.length < 2) return alert("At least two valid rows are required.");
+    if (validRows.length < 2) return await alert("At least two valid rows are required.");
 
     const ref = `JRN-${Date.now().toString().slice(-6)}`;
     const promises = validRows.map(r => {
@@ -462,7 +540,7 @@ function JournalEntries({ journal, accounts, onRefresh }) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-ink-700 mb-1">Date</label>
-                <input type="date" required value={entryDate} onChange={e => setEntryDate(e.target.value)} className="w-full border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-paprika-500" />
+                <DatePicker   required value={entryDate} onChange={e = /> setEntryDate(e.target.value)} className="w-full border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-paprika-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-ink-700 mb-1">Description</label>
@@ -573,14 +651,6 @@ function GeneralLedger({ journal, accounts }) {
             options={accounts.filter(a => a.is_active !== 0)} 
             placeholder="Choose an account..."
           />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1">Date Range</label>
-          <select className="border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-paprika-500 bg-white">
-            <option>All Time</option>
-            <option>This Month</option>
-            <option>Last Month</option>
-          </select>
         </div>
         <Button variant="secondary" size="sm" className="h-[38px]">
           <Download size={16} /> Export
@@ -775,25 +845,29 @@ function BankAccounts({ banks, onRefresh }) {
   );
 }
 
-// --- Main Page Component ---
 export default function Accounting() {
-  const [activeTab, setActiveTab] = useState(TABS[0]);
+  const { user } = useAuth();
+  const { alert, confirm } = useDialog();
+  const { getData } = useDataCache();
+  const { filters } = useDashboardFilters();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({
-    accounts: [], journal: [], orders: [], expenses: [], customers: [], suppliers: [], banks: []
+    accounts: [], journal: [], orders: [], expenses: [], customers: [], suppliers: [], banks: [], orderItems: [], menuItems: []
   });
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [accounts, journal, orders, expenses, customers, suppliers, banks] = await Promise.all([
-        api.list("accounts"),
-        api.list("journal_entries"),
-        api.list("orders"),
-        api.list("expenses"),
-        api.list("customers"),
-        api.list("suppliers"),
-        api.list("bank_accounts")
+      const [accounts, journal, orders, expenses, customers, suppliers, banks, orderItems, menuItems] = await Promise.all([
+        getData("accounts"),
+        getData("journal_entries"),
+        getData("orders"),
+        getData("expenses"),
+        getData("customers"),
+        getData("suppliers"),
+        getData("bank_accounts"),
+        getData("order_items"),
+        getData("menu_items")
       ]);
 
       // Auto-seed default accounts if empty (mock support)
@@ -802,7 +876,7 @@ export default function Accounting() {
         for (const acc of DEFAULT_ACCOUNTS) {
           await api.create("accounts", acc);
         }
-        finalAccounts = await api.list("accounts");
+        finalAccounts = await getData("accounts");
       }
 
       setData({ 
@@ -812,7 +886,9 @@ export default function Accounting() {
         expenses: expenses || [], 
         customers: customers || [], 
         suppliers: suppliers || [], 
-        banks: banks || [] 
+        banks: banks || [],
+        orderItems: orderItems || [],
+        menuItems: menuItems || []
       });
     } catch (e) {
       console.error("Error loading accounting data", e);
@@ -823,6 +899,48 @@ export default function Accounting() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const dateRange = useMemo(() => {
+    const now = new Date();
+    const start = new Date(now);
+    const end = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+
+    if (filters.range === "Today") {
+      return { start, end };
+    } else if (filters.range === "This Week") {
+      const day = start.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      start.setDate(start.getDate() + diff);
+      return { start, end };
+    } else if (filters.range === "This Month") {
+      start.setDate(1);
+      return { start, end };
+    } else if (filters.range === "This Year") {
+      start.setMonth(0, 1);
+      return { start, end };
+    }
+    return { start: null, end: null };
+  }, [filters.range]);
+
+  const filteredData = useMemo(() => {
+    const { start, end } = dateRange;
+    if (!start || !end) return data;
+
+    const filterByDate = (dateStr) => {
+      if (!dateStr) return false;
+      const d = parseDate(dateStr);
+      return d && d >= start && d <= end;
+    };
+
+    return {
+      ...data,
+      journal: data.journal.filter(j => filterByDate(j.date || j.created_at)),
+      orders: data.orders.filter(o => filterByDate(o.created_at || o.time)),
+      expenses: data.expenses.filter(e => filterByDate(e.date)),
+    };
+  }, [data, dateRange]);
 
   return (
     <div className="pb-10">
@@ -839,7 +957,7 @@ export default function Accounting() {
         </div>
       ) : (
         <div className="animate-fade-in">
-          <DashboardOverview {...data} />
+          <DashboardOverview {...filteredData} fullJournal={data.journal} />
         </div>
       )}
     </div>

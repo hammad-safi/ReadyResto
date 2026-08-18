@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { Search, Plus, Trash2, PackagePlus, FileEdit, Truck, CheckCircle2, Calendar, RotateCcw, AlertTriangle, ArrowLeftRight, Check, X, ShieldAlert, ChevronDown, Printer } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
+import { useDialog } from "../context/DialogContext";
 import StatCard from "../components/ui/StatCard";
 import ModuleTable from "../components/ui/ModuleTable";
 import Badge, { statusTone } from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import api from "../api/client";
 import { useDashboardFilters } from "../context/DashboardFilterContext";
+import { useDataCache } from "../context/DataCacheContext";
 import Modal from "../components/ui/Modal";
 import PurchaseReceipt from "../components/pos/PurchaseReceipt";
+import DatePicker from "../components/ui/DatePicker";
 
 function SearchableSelect({
   value,
@@ -154,6 +157,8 @@ const RETURN_REASONS = [
 ];
 
 export default function Purchases() {
+  const { getData } = useDataCache();
+  const { confirm } = useDialog();
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const [pos, setPOs] = useState([]);
   const [purchaseReturns, setPurchaseReturns] = useState([]);
@@ -173,7 +178,7 @@ export default function Purchases() {
   const [selectedPO, setSelectedPO] = useState(null);
   
   const [supplier, setSupplier] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [status, setStatus] = useState("draft");
   const [poItems, setPoItems] = useState([]);
   const [invSearch, setInvSearch] = useState("");
@@ -210,10 +215,10 @@ export default function Purchases() {
 
   const load = async () => {
     const [p, s, i, ret, prof] = await Promise.all([
-      api.list("purchase_orders", { orderBy: "id DESC" }),
-      api.list("suppliers"),
-      api.list("inventory_items"),
-      api.list("purchase_returns", { orderBy: "id DESC" }),
+      getData("purchase_orders", { orderBy: "id DESC" }),
+      getData("suppliers"),
+      getData("inventory_items"),
+      getData("purchase_returns", { orderBy: "id DESC" }),
       api.getSetting("restaurant_profile")
     ]);
     setPOs(p || []);
@@ -284,7 +289,7 @@ export default function Purchases() {
   const openNewPO = () => {
     setSelectedPO(null);
     setSupplier("Walk-in / Unregistered Supplier");
-    setDate(new Date().toISOString().split("T")[0]);
+    setDate(new Date().toLocaleDateString('en-CA'));
     setStatus("draft");
     setPoItems([]);
     setAmountPaid(0);
@@ -359,15 +364,30 @@ export default function Purchases() {
       return;
     }
 
+    // Double check available stock
+    for (const it of itemsToReturn) {
+      const invItem = inventory.find(inv => inv.id === it.inventory_item_id);
+      const available = invItem ? Number(invItem.stock || 0) : 0;
+      if (available < it.qty) {
+        alert(`Cannot return "${it.name}". Requested return qty (${it.qty}) exceeds available stock (${available} ${it.unit}).`);
+        return;
+      }
+    }
+
     setSubmittingReturn(true);
-    await api.returnPurchaseOrder(returnPO.id, {
-      itemsToReturn,
-      reason: returnReason,
-      refundMode
-    });
-    setSubmittingReturn(false);
-    setReturnModalOpen(false);
-    load();
+    try {
+      await api.returnPurchaseOrder(returnPO.id, {
+        itemsToReturn,
+        reason: returnReason,
+        refundMode
+      });
+      setReturnModalOpen(false);
+      load();
+    } catch (err) {
+      alert(err.message || "Failed to process purchase return.");
+    } finally {
+      setSubmittingReturn(false);
+    }
   };
 
   // Confirm Delete PO
@@ -388,7 +408,7 @@ export default function Purchases() {
   // Direct Receive Action from table
   const handleQuickReceive = async (po, e) => {
     e?.stopPropagation();
-    if (window.confirm(`Receive PO #${String(po.id).padStart(4, "0")}? This will update stock levels and supplier due balances.`)) {
+    if (await confirm(`Receive PO #${String(po.id).padStart(4, "0")}? This will update stock levels and supplier due balances.`)) {
       const items = await api.list("purchase_order_items", { where: { po_id: po.id } });
       await api.processPurchaseOrder({ ...po, status: "received" }, items);
       load();
@@ -534,23 +554,28 @@ export default function Purchases() {
         <StatCard label="Total Returns" value={`Rs. ${totalReturnedAmount.toLocaleString()}`} icon={RotateCcw} sub="Returned to suppliers" />
       </div> */}
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-4 overflow-x-auto">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setActiveTab(t)}
-            className={`shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-medium border ${
-              activeTab === t ? "bg-paprika-500 text-white border-paprika-500 shadow-sm" : "border-canvas-200 text-ink-600 bg-[rgb(var(--surface-card))] hover:bg-canvas-100"
-            }`}
-          >
-            {t} {t === "Purchase Returns" && purchaseReturns.length > 0 ? `(${purchaseReturns.length})` : ""}
-          </button>
-        ))}
-      </div>
+      {(() => {
+        const tabsActions = (
+          <div className="flex gap-1.5 overflow-x-auto hide-scrollbar">
+            {TABS.map((t) => (
+              <button
+                key={t}
+                onClick={() => setActiveTab(t)}
+                className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  activeTab === t ? "bg-paprika-500 text-white border-paprika-500 shadow-sm" : "border-canvas-200 text-ink-600 bg-[rgb(var(--surface-card))] hover:bg-canvas-100"
+                }`}
+              >
+                {t} {t === "Purchase Returns" && purchaseReturns.length > 0 ? `(${purchaseReturns.length})` : ""}
+              </button>
+            ))}
+          </div>
+        );
 
-      {activeTab === "Purchase Orders" && (
+        return (
+          <>
+            {activeTab === "Purchase Orders" && (
         <ModuleTable
+          actions={tabsActions}
           columns={[
             { 
               key: "id", 
@@ -648,14 +673,14 @@ export default function Purchases() {
               <Field label="From date">
                 <div className="relative">
                   <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                  <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                  <DatePicker   value={dateFrom} onChange={(e) = /> setDateFrom(e.target.value)}
                     className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
                 </div>
               </Field>
               <Field label="To date">
                 <div className="relative">
                   <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                  <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                  <DatePicker   value={dateTo} onChange={(e) = /> setDateTo(e.target.value)}
                     className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
                 </div>
               </Field>
@@ -687,6 +712,7 @@ export default function Purchases() {
       {activeTab === "Purchase Returns" && (
         <div className="space-y-4">
           <ModuleTable
+            actions={tabsActions}
             columns={[
               { 
                 key: "id", 
@@ -767,7 +793,7 @@ export default function Purchases() {
                   poItems.length === 0 ||
                   (status === "received" && paymentTerm === "Split" && Math.abs(remainingToAllocate) > 0.01) ||
                   !supplier ||
-                  (status === "received" && supplier === "Walk-in / Unregistered Supplier" && (paymentTerm === "Credit" || Number(paymentTerm === "Split" ? sumOfSplits : amountPaid) === 0))
+                  (status === "received" && supplier === "Walk-in / Unregistered Supplier" && (paymentTerm === "Credit" || Number(paymentTerm === "Split" ? sumOfSplits : amountPaid) < poTotal))
                 }
               >
                 {status === "received" ? "Receive & Update Stock" : "Save PO"}
@@ -807,7 +833,7 @@ export default function Purchases() {
               )}
             </Field>
             <Field label="Order Date">
-              <input type="date" value={date} onChange={e => setDate(e.target.value)} disabled={isReadOnly} className="mt-1 w-full border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none disabled:bg-canvas-50 disabled:text-ink-500" />
+              <DatePicker   value={date} onChange={e = /> setDate(e.target.value)} disabled={isReadOnly} className="mt-1 w-full border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none disabled:bg-canvas-50 disabled:text-ink-500" />
             </Field>
             <Field label="Status">
               <select value={status} onChange={e => setStatus(e.target.value)} disabled={isReadOnly} className="mt-1 w-full border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none disabled:bg-canvas-50 disabled:text-ink-500 font-medium">
@@ -1219,6 +1245,7 @@ export default function Purchases() {
                     const receivedQty = Number(item.qty || 0);
                     const prevReturned = Number(item.returned_qty || 0);
                     const maxReturnable = Math.max(0, receivedQty - prevReturned);
+                    const available = inventory.find(i => i.id === item.inventory_item_id)?.stock || 0;
                     const currentReturnQty = returnQtys[item.inventory_item_id] || 0;
                     const lineRefund = currentReturnQty * Number(item.cost || 0);
 
@@ -1226,7 +1253,7 @@ export default function Purchases() {
                       <tr key={item.inventory_item_id} className="hover:bg-canvas-50">
                         <td className="px-3 py-2 font-medium text-ink-900">
                           {item.name}
-                          <span className="text-[10px] text-ink-400 block">{item.unit}</span>
+                          <span className="text-[10px] text-ink-400 block">{item.unit} · Available: {available}</span>
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-ink-700">{receivedQty}</td>
                         <td className="px-3 py-2 text-right font-mono text-paprika-600">{prevReturned}</td>
@@ -1234,10 +1261,10 @@ export default function Purchases() {
                           <input 
                             type="number" 
                             min={0} 
-                            max={maxReturnable}
+                            max={Math.min(maxReturnable, available)}
                             value={currentReturnQty}
                             onChange={(e) => {
-                              const val = Math.min(maxReturnable, Math.max(0, Number(e.target.value)));
+                              const val = Math.min(maxReturnable, available, Math.max(0, Number(e.target.value)));
                               setReturnQtys(prev => ({ ...prev, [item.inventory_item_id]: val }));
                             }}
                             className="w-20 rounded-lg border border-canvas-200 px-2 py-1 text-sm text-right font-mono outline-none focus:ring-2 focus:ring-paprika-500/30"
@@ -1300,6 +1327,11 @@ export default function Purchases() {
           }}
         />
       )}
+
+          </>
+        );
+      })()}
+
     </div>
   );
 }

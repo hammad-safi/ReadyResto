@@ -65,8 +65,12 @@ export function printKOT(ordersInput, selectedItemIds = null) {
         <h2>KITCHEN TICKET</h2>
         <div class="meta">
           <div><strong>Order:</strong> #${order.id}</div>
-          <div><strong>Type:</strong> ${String(order.type).toLowerCase() === "dine-in" ? "Dine-In (Table " + order.table + ")" : (order.type || "TAKEAWAY").toUpperCase()}</div>
-          <div><strong>Time:</strong> ${new Date(order.time || Date.now()).toLocaleTimeString()}</div>
+          <div><strong>Type:</strong> ${String(order.type).toLowerCase() === "dine-in" ? "Dine-In (Table " + (order.table_id || order.table || "") + ")" : (order.type || "TAKEAWAY").toUpperCase()}</div>
+          <div><strong>Time:</strong> ${(() => {
+            if (!order.time) return new Date().toLocaleTimeString();
+            const parsed = new Date(order.time);
+            return isNaN(parsed.getTime()) ? order.time : parsed.toLocaleTimeString();
+          })()}</div>
           <div><strong>Waiter:</strong> ${order.waiter || 'None'}</div>
         </div>
         <div class="divider"></div>

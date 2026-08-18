@@ -9,6 +9,7 @@ import Button from "../components/ui/Button";
 import Badge, { statusTone } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import api from "../api/client";
+import { useDataCache } from "../context/DataCacheContext";
 
 
 // SearchableSelect Helper Component
@@ -101,6 +102,7 @@ const columns = [
 ];
 
 export default function Inventory() {
+  const { getData } = useDataCache();
   
   // Ingredients list for selectors
   const [ingredients, setIngredients] = useState([]);
@@ -141,7 +143,7 @@ export default function Inventory() {
     name: "",
     batch_number: "",
     supplier: "Metro Cash & Carry",
-    purchase_date: new Date().toISOString().split("T")[0],
+    purchase_date: new Date().toLocaleDateString('en-CA'),
     expiry_date: "",
     qty: "",
     unit: "kg",
@@ -243,11 +245,11 @@ export default function Inventory() {
   ];
 
   const loadData = () => {
-    api.list("inventory_items").then(setIngredients);
-    api.list("inventory_transactions").then(res => setTransactions(res || []));
-    api.list("physical_counts").then(res => setCountsList(res || []));
-    api.list("expiry_batches").then(res => setExpiryList(res || []));
-    api.list("suppliers").then(res => setSuppliers(res || []));
+    getData("inventory_items").then(setIngredients);
+    getData("inventory_transactions").then(res => setTransactions(res || []));
+    getData("physical_counts").then(res => setCountsList(res || []));
+    getData("expiry_batches").then(res => setExpiryList(res || []));
+    getData("suppliers").then(res => setSuppliers(res || []));
     api.getSetting("custom_inventory_categories").then(res => {
       const permanent = ["Vegetables", "Meat & Poultry", "Seafood", "Dairy & Eggs", "Fruits", "Spices & Herbs", "Grains & Pasta", "Bakery", "Beverages", "Packaging", "Cleaning"];
       const custom = res || [];
@@ -345,7 +347,7 @@ export default function Inventory() {
 
   const handleSaveCountDraft = async () => {
     await api.submitPhysicalCount({
-      date: new Date().toISOString().split("T")[0],
+      date: new Date().toLocaleDateString('en-CA'),
       status: "draft",
       approved_by: countApprovedBy,
       notes: countNotes,
@@ -357,7 +359,7 @@ export default function Inventory() {
 
   const handleSubmitCountFinal = async () => {
     await api.submitPhysicalCount({
-      date: new Date().toISOString().split("T")[0],
+      date: new Date().toLocaleDateString('en-CA'),
       status: "completed",
       approved_by: countApprovedBy,
       notes: countNotes,
@@ -377,7 +379,7 @@ export default function Inventory() {
       name: "",
       batch_number: "",
       supplier: "Metro Cash & Carry",
-      purchase_date: new Date().toISOString().split("T")[0],
+      purchase_date: new Date().toLocaleDateString('en-CA'),
       expiry_date: "",
       qty: "",
       unit: "kg",
@@ -406,20 +408,16 @@ export default function Inventory() {
 
       {/* ── TAB 1: ALL INGREDIENTS ──────────────────────────────────────────────── */}
         <div>
-          <div className="mb-3 flex justify-between items-center bg-white p-3 border border-canvas-200 rounded-xl">
-            <span className="text-xs font-semibold text-ink-500">Ingredient Ledger Sheet</span>
-            <div className="flex gap-2">
-              <Button variant="secondary" size="sm" icon={FileSpreadsheet} onClick={() => exportToCSV(ingredients, "ingredients_inventory.csv")}>
-                Export CSV
-              </Button>
-            </div>
-          </div>
-
           <EntityManager 
             table="inventory_items" 
             moduleName="Ingredient" 
             columns={columns} 
             fields={fields} 
+            actions={
+              <Button variant="secondary" size="sm" icon={FileSpreadsheet} onClick={() => exportToCSV(ingredients, "ingredients_inventory.csv")}>
+                Export CSV
+              </Button>
+            }
             onFilter={filterFn}
             activeFilterCount={activeFilterCount}
             onClearFilters={clearFilters}

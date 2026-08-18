@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import PageHeader from "../components/ui/PageHeader";
+import { useDialog } from "../context/DialogContext";
 import api from "../api/client";
+import { useDataCache } from "../context/DataCacheContext";
 import Button from "../components/ui/Button";
 import { 
   Bell, Trash2, CheckCheck, Layers, Calendar, CreditCard, 
@@ -8,12 +10,14 @@ import {
 } from "lucide-react";
 
 export default function Notifications() {
+  const { getData, invalidate } = useDataCache();
+  const { confirm } = useDialog();
   const [rows, setRows] = useState([]);
   const [preferences, setPreferences] = useState(null);
   const [saved, setSaved] = useState(false);
 
   const loadNotifications = () => {
-    api.list("notifications", { orderBy: "id DESC" }).then(setRows);
+    getData("notifications", { orderBy: "id DESC" }).then(setRows);
   };
 
   useEffect(() => {
@@ -31,7 +35,10 @@ export default function Notifications() {
       });
     });
 
-    const interval = setInterval(loadNotifications, 5000);
+    const interval = setInterval(() => {
+      invalidate("notifications");
+      loadNotifications();
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -43,20 +50,31 @@ export default function Notifications() {
     await api.setSetting("alert_preferences", preferences);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+    invalidate("notifications");
     loadNotifications(); // Reload to apply any new alert triggers immediately
   };
 
   const handleMarkAllRead = async () => {
     if (api.markAllNotificationsRead) {
       await api.markAllNotificationsRead();
+      invalidate("notifications");
+      loadNotifications();
+    }
+  };
+
+  const handleMarkRead = async (id) => {
+    if (api.markNotificationRead) {
+      await api.markNotificationRead(id);
+      invalidate("notifications");
       loadNotifications();
     }
   };
 
   const handleClearAll = async () => {
-    if (window.confirm("Are you sure you want to clear all notifications? This cannot be undone.")) {
+    if (await confirm("Are you sure you want to clear all notifications? This cannot be undone.")) {
       if (api.clearNotifications) {
         await api.clearNotifications();
+        invalidate("notifications");
         setRows([]);
       }
     }
@@ -114,8 +132,9 @@ export default function Notifications() {
             {rows.map((n) => (
               <div 
                 key={n.id} 
+                onClick={() => !n.read && handleMarkRead(n.id)}
                 className={`px-5 py-4 flex items-start justify-between gap-4 transition-colors ${
-                  !n.read ? "bg-paprika-50/20 border-l-4 border-l-paprika-500" : ""
+                  !n.read ? "bg-paprika-50/20 border-l-4 border-l-paprika-500 cursor-pointer hover:bg-paprika-50/35" : ""
                 }`}
               >
                 <div className="flex items-start gap-3">

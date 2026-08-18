@@ -1,5 +1,6 @@
-import { Printer, X, Download } from "lucide-react";
+import { Printer, X } from "lucide-react";
 import Button from "../ui/Button";
+import Barcode from "react-barcode";
 
 // A single receipt, rendered both on-screen (in a modal) and via window.print().
 // `order` matches the orders table row; `items` matches order_items rows;
@@ -8,6 +9,9 @@ export default function Receipt({ order, items, profile, onClose, refundLines = 
   if (!order) return null;
 
   const handlePrint = () => window.print();
+
+  // Create simple payload for QR Code
+  const qrPayload = `Inv: ${order.id}\nAmt: Rs. ${order.total}\nDate: ${order.time}`;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 print:p-0 print:absolute print:top-0 print:left-0 print:block">
@@ -20,74 +24,70 @@ export default function Receipt({ order, items, profile, onClose, refundLines = 
           </button>
         </div>
 
-        <div id="receipt-print-area" className="overflow-y-auto px-6 py-5 font-mono text-[12px] leading-relaxed text-ink-800">
+        <div id="receipt-print-area" className="overflow-y-auto px-6 py-5 bg-white font-mono text-[11px] leading-relaxed text-ink-900 print:p-2 print:text-black">
           <div className="text-center mb-3">
             {profile?.showLogo !== false && (
               profile?.logo ? (
-                <img src={profile.logo} alt="logo" className="h-12 mx-auto mb-2 object-contain" />
+                <img src={profile.logo} alt="logo" className="h-10 mx-auto mb-1.5 object-contain" />
               ) : (
-                <div className="h-10 w-10 rounded-lg bg-paprika-500 text-white flex items-center justify-center font-display font-bold text-lg mx-auto mb-2">
+                <div className="h-8 w-8 rounded-lg bg-paprika-500 text-white flex items-center justify-center font-display font-bold text-sm mx-auto mb-1.5">
                   {(profile?.name || "R")[0]}
                 </div>
               )
             )}
-            <p className="font-display font-bold text-sm text-ink-900">{profile?.name || "Restaurant"}</p>
-            {profile?.tagline && <p className="text-[10px] text-ink-500 italic mb-0.5">{profile.tagline}</p>}
-            {profile?.address && <p className="text-[11px] text-ink-500">{profile.address}</p>}
-            {profile?.phone && <p className="text-[11px] text-ink-500">Ph: {profile.phone}</p>}
-            {profile?.ntn && <p className="text-[10px] text-ink-400 font-mono">NTN: {profile.ntn}</p>}
+            <p className="font-display font-bold text-xs text-ink-900 print:text-black">{profile?.name || "Restaurant Name"}</p>
+            {profile?.tagline && <p className="text-[9px] text-ink-500 italic mb-0.5 print:text-black">{profile.tagline}</p>}
+            {profile?.address && <p className="text-[10px] text-ink-500 print:text-black">{profile.address}</p>}
+            {profile?.phone && <p className="text-[10px] text-ink-500 print:text-black">Ph: {profile.phone}</p>}
+            {profile?.ntn && <p className="text-[9px] text-ink-400 print:text-black">NTN: {profile.ntn}</p>}
             {profile?.showOwnerInfo && profile?.ownerName && (
-              <p className="text-[10px] text-ink-500 mt-1 pt-0.5 border-t border-dotted border-ink-200">
-                Proprietor: {profile.ownerName} {profile.ownerPhone ? `· ${profile.ownerPhone}` : ""}
+              <p className="text-[9px] text-ink-500 mt-1 pt-0.5 border-t border-dotted border-ink-200 print:text-black print:border-black">
+                Proprietor: {profile.ownerName}
               </p>
             )}
           </div>
 
-          <div className="border-t border-dashed border-ink-300 my-2" />
-
-          <div className="flex justify-between text-[11px] text-ink-600">
+          <div className="border-t border-dashed border-ink-300 my-1.5 print:border-black" />
+          <div className="flex justify-between text-[10px] text-ink-600 print:text-black">
             <span>{order.id}</span>
             <span>{order.time}</span>
           </div>
-          <div className="flex justify-between text-[11px] text-ink-600">
+          <div className="flex justify-between text-[10px] text-ink-600 print:text-black">
             <span>{order.type}{order.table_id ? ` · Table ${order.table_id}` : ""}</span>
-            <span>{order.waiter}</span>
-          </div>
-          <div className="flex justify-between text-[11px] text-ink-600">
-            <span>Customer</span>
-            <span>{order.customer || "Walk-in"}</span>
+            <span>{profile?.showCashierName !== false ? `Cashier: ${order.waiter || "System"}` : ""}</span>
           </div>
 
-          <div className="border-t border-dashed border-ink-300 my-2" />
-
-          <div className="space-y-1">
+          <div className="border-t border-dashed border-ink-300 my-1.5 print:border-black" />
+          <div className="space-y-0.5">
             {items.map((it) => (
-              <div key={it.id || it.menu_item_id} className="flex justify-between gap-2">
-                <span className="flex-1 truncate">{it.qty} × {it.name}</span>
+              <div key={it.id || it.menu_item_id} className="flex justify-between">
+                <span className="flex-1 pr-2 truncate">{it.qty} × {it.name}</span>
                 <span>Rs. {(it.qty * it.price).toLocaleString()}</span>
               </div>
             ))}
           </div>
 
-          <div className="border-t border-dashed border-ink-300 my-2" />
+          <div className="border-t border-dashed border-ink-300 my-1.5 print:border-black" />
 
-          <div className="flex justify-between"><span>Subtotal</span><span>Rs. {Number(order.subtotal ?? order.total).toLocaleString()}</span></div>
+          {/* Subtotals & Taxes */}
+          <div className="flex justify-between text-[10px]"><span>Subtotal</span><span>Rs. {Number(order.subtotal ?? order.total).toLocaleString()}</span></div>
           {order.discount_percent > 0 && (
-            <div className="flex justify-between text-basil-600">
-              <span>Discount ({order.discount_percent}%{order.discount_reason ? ` · ${order.discount_reason}` : ""})</span>
+            <div className="flex justify-between text-[10px] text-ink-600 print:text-black">
+              <span>Disc ({order.discount_percent}%)</span>
               <span>- Rs. {Math.round((order.subtotal * order.discount_percent) / 100).toLocaleString()}</span>
             </div>
           )}
-          {order.tax > 0 && <div className="flex justify-between"><span>Tax</span><span>Rs. {Number(order.tax).toLocaleString()}</span></div>}
-          {order.service_charge > 0 && <div className="flex justify-between"><span>Service Charge</span><span>Rs. {Number(order.service_charge).toLocaleString()}</span></div>}
+          {order.tax > 0 && <div className="flex justify-between text-[10px]"><span>Tax</span><span>Rs. {Number(order.tax).toLocaleString()}</span></div>}
+          {order.service_charge > 0 && <div className="flex justify-between text-[10px]"><span>Service Charge</span><span>Rs. {Number(order.service_charge).toLocaleString()}</span></div>}
 
-          <div className="border-t border-dashed border-ink-300 my-2" />
+          <div className="border-t border-dashed border-ink-300 my-1.5 print:border-black" />
 
-          <div className="flex justify-between text-sm font-semibold text-ink-900">
+          <div className="flex justify-between font-bold text-xs">
             <span>TOTAL</span>
             <span>Rs. {Number(order.total).toLocaleString()}</span>
           </div>
 
+          {/* Payment Method */}
           {order.payment_method && (() => {
             let splitDetails = null;
             try {
@@ -98,10 +98,10 @@ export default function Receipt({ order, items, profile, onClose, refundLines = 
 
             return (
               <>
-                <div className="border-t border-dashed border-ink-300 my-2" />
-                <div className="flex justify-between"><span>Paid via</span><span>{splitDetails ? "Split Payment" : order.payment_method}</span></div>
+                <div className="border-t border-dashed border-ink-300 my-1.5 print:border-black" />
+                <div className="flex justify-between text-[10px]"><span>Paid via</span><span>{splitDetails ? "Split Payment" : order.payment_method}</span></div>
                 {splitDetails ? (
-                  <div className="pl-2 space-y-0.5 text-ink-600 text-[11px] mt-1 border-l border-dashed border-canvas-300">
+                  <div className="pl-2 space-y-0.5 text-ink-600 text-[9px] mt-1 border-l border-dashed border-canvas-300 print:text-black print:border-black">
                     {splitDetails.map((s, idx) => (
                       <div key={idx} className="flex justify-between">
                         <span>• {s.method}</span>
@@ -111,20 +111,21 @@ export default function Receipt({ order, items, profile, onClose, refundLines = 
                   </div>
                 ) : (
                   <>
-                    {order.tendered != null && <div className="flex justify-between"><span>Tendered</span><span>Rs. {Number(order.tendered).toLocaleString()}</span></div>}
-                    {order.change_due != null && order.change_due > 0 && <div className="flex justify-between"><span>Change</span><span>Rs. {Number(order.change_due).toLocaleString()}</span></div>}
+                    {order.tendered != null && <div className="flex justify-between text-[10px]"><span>Tendered</span><span>Rs. {Number(order.tendered).toLocaleString()}</span></div>}
+                    {order.change_due != null && order.change_due > 0 && <div className="flex justify-between text-[10px]"><span>Change</span><span>Rs. {Number(order.change_due).toLocaleString()}</span></div>}
                   </>
                 )}
               </>
             );
           })()}
 
+          {/* Refund Lines */}
           {refundLines.length > 0 && (
             <>
-              <div className="border-t border-dashed border-ink-300 my-2" />
-              <p className="font-semibold text-paprika-600 mb-1">Returns / Adjustments</p>
+              <div className="border-t border-dashed border-ink-300 my-1.5 print:border-black" />
+              <p className="font-semibold text-[10px] mb-1">Returns / Adjustments</p>
               {refundLines.map((r) => (
-                <div key={r.id} className="flex justify-between text-paprika-600">
+                <div key={r.id} className="flex justify-between text-[10px]">
                   <span>{r.kind === "adjustment" ? "Adj." : "Return"} · {r.time}</span>
                   <span>- Rs. {Number(r.amount).toLocaleString()}</span>
                 </div>
@@ -132,8 +133,23 @@ export default function Receipt({ order, items, profile, onClose, refundLines = 
             </>
           )}
 
-          <div className="border-t border-dashed border-ink-300 my-3" />
-          <p className="text-center text-[11px] text-ink-500">{profile?.receiptFooter || "Thank you for dining with us!"}</p>
+          <div className="border-t border-dashed border-ink-300 my-2 print:border-black" />
+          
+          {profile?.showQrCode !== false && (
+            <div className="flex justify-center mb-3 mix-blend-multiply opacity-80">
+              <Barcode 
+                value={order.id.replace("ORD-", "")} 
+                width={1.5}
+                height={40}
+                displayValue={false}
+                margin={0}
+              />
+            </div>
+          )}
+
+          <p className="text-center text-[10px] text-ink-500 print:text-black">
+            {profile?.receiptFooter !== undefined ? profile.receiptFooter : "Thank you for dining with us!"}
+          </p>
         </div>
 
         <div className="px-4 py-3 border-t border-canvas-200 flex gap-2 print:hidden shrink-0">

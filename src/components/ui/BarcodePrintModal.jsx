@@ -63,21 +63,23 @@ export default function BarcodePrintModal({ isOpen, onClose, item }) {
       </Modal>
 
       {/* Hidden print container that ONLY shows during print */}
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
+      {isOpen && (
+        <style>{`
+          @media print {
+            body * {
+              visibility: hidden;
+            }
+            .barcode-print-container, .barcode-print-container * {
+              visibility: visible;
+            }
+            .barcode-print-container {
+              position: absolute;
+              left: 0;
+              top: 0;
+            }
           }
-          .barcode-print-container, .barcode-print-container * {
-            visibility: visible;
-          }
-          .barcode-print-container {
-            position: absolute;
-            left: 0;
-            top: 0;
-          }
-        }
-      `}</style>
+        `}</style>
+      )}
       
       {isOpen && (
         <div className="barcode-print-container hidden print:grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-8 p-4 bg-white absolute inset-0 z-[9999] w-full min-h-screen">

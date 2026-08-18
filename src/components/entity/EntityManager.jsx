@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import api from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
+import { useDataCache } from "../../context/DataCacheContext";
 import PageHeader from "../ui/PageHeader";
 import Button from "../ui/Button";
 import ModuleTable from "../ui/ModuleTable";
@@ -22,11 +23,13 @@ export default function EntityManager({
   emptyLabel,
   extraHeaderActions,
   rowActions = true,
+  actions,
   filterContent,
   activeFilterCount,
   onClearFilters,
   onFilter,
 }) {
+  const { invalidate } = useDataCache();
   const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -108,6 +111,7 @@ export default function EntityManager({
       });
     }
     setModalOpen(false);
+    invalidate(table);
     load();
   };
 
@@ -118,6 +122,7 @@ export default function EntityManager({
       action: `Deleted ${moduleName} record #${confirmDelete.id}`,
     });
     setConfirmDelete(null);
+    invalidate(table);
     load();
   };
 
@@ -209,6 +214,7 @@ export default function EntityManager({
           filterContent={filterContent}
           activeFilterCount={activeFilterCount}
           onClearFilters={onClearFilters}
+          actions={actions}
         />
       )}
 

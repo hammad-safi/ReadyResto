@@ -67,6 +67,10 @@ export function AuthProvider({ children }) {
   const loginWithPin = async (pin) => {
     const res = await api.loginWithPin(pin);
     if (res.success) {
+      try {
+        const perms = await api.getPermissions();
+        setPermissions(perms);
+      } catch {}
       setUser(res.user);
       setLocked(false);
     }
@@ -76,6 +80,10 @@ export function AuthProvider({ children }) {
   const loginWithPassword = async (usernameOrEmail, password) => {
     const res = await api.loginWithPassword(usernameOrEmail, password);
     if (res.success) {
+      try {
+        const perms = await api.getPermissions();
+        setPermissions(perms);
+      } catch {}
       setUser(res.user);
       setLocked(false);
     }
@@ -97,6 +105,18 @@ export function AuthProvider({ children }) {
   };
 
   // ── Permission helper ─────────────────────────────────────────────────────
+  const refreshPermissions = useCallback(async (customUser) => {
+    const targetUser = customUser || user;
+    if (targetUser) {
+      try {
+        const perms = await api.getPermissions();
+        setPermissions(perms);
+      } catch (e) {
+        setPermissions([]);
+      }
+    }
+  }, [user]);
+
   const canDo = (module, action = "view") => {
     if (!user) return false;
     if (user.role === "Owner") return true;
@@ -122,7 +142,7 @@ export function AuthProvider({ children }) {
       user, locked,
       loginWithPin, loginWithPassword,
       lock, logout,
-      permissions, canDo,
+      permissions, canDo, refreshPermissions,
       autoLockMinutes, setAutoLockMinutes,
       deviceName: deviceName.current,
     }}>

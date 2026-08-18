@@ -14,6 +14,8 @@ import ModuleTable from "../components/ui/ModuleTable";
 import api from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useDashboardFilters } from "../context/DashboardFilterContext";
+import { useDataCache } from "../context/DataCacheContext";
+import DatePicker from "../components/ui/DatePicker";
 
 const RETURN_REASONS = [
   "Customer complaint",
@@ -76,6 +78,7 @@ function formatDateTime(iso, fallbackTime) {
 }
 
 export default function Sales({ onNewSale }) {
+  const { getData } = useDataCache();
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [returns, setReturns] = useState([]);
@@ -109,12 +112,12 @@ export default function Sales({ onNewSale }) {
   const { getDateRange } = useDashboardFilters();
 
   const load = () => {
-    api.list("orders", { orderBy: "created_at DESC" }).then((rows) =>
+    getData("orders", { orderBy: "created_at DESC" }).then((rows) =>
       setOrders(rows.filter((o) => ["paid", "served", "completed"].includes(o.status)))
     );
-    api.list("sales_returns").then(setReturns);
+    getData("sales_returns").then(setReturns);
     api.getSetting("restaurant_profile").then(setProfile);
-    api.list("menu_items").then(setMenuItems);
+    getData("menu_items").then(setMenuItems);
   };
 
   useEffect(() => { void load(); }, []);
@@ -370,14 +373,14 @@ export default function Sales({ onNewSale }) {
             <Field label="From date">
               <div className="relative">
                 <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                <DatePicker   value={dateFrom} onChange={(e) = /> setDateFrom(e.target.value)}
                   className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
               </div>
             </Field>
             <Field label="To date">
               <div className="relative">
                 <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                <DatePicker   value={dateTo} onChange={(e) = /> setDateTo(e.target.value)}
                   className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
               </div>
             </Field>

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Search, Bell, Menu, Sparkles, CalendarDays, KeyRound, Lock, LogOut, RefreshCw, ShoppingBag, Users, Truck, Package, Archive, Building2 } from "lucide-react";
+import { Search, Bell, Menu, Sparkles, CalendarDays, KeyRound, Lock, LogOut, RefreshCw, ShoppingBag, Users, Truck, Package, Archive, Building2, CreditCard, Receipt } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
@@ -15,6 +15,7 @@ export default function Topbar({ onMenuClick }) {
 
   const navigate = useNavigate();
   const searchContainerRef = useRef(null);
+  const notifRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showResults, setShowResults] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -164,6 +165,23 @@ export default function Topbar({ onMenuClick }) {
       loadNotifications();
     }
   };
+
+  const handleMarkRead = async (id) => {
+    if (api.markNotificationRead) {
+      await api.markNotificationRead(id);
+      loadNotifications();
+    }
+  };
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (notifOpen && notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [notifOpen]);
 
   useEffect(() => {
     loadNotifications();
@@ -320,33 +338,87 @@ export default function Topbar({ onMenuClick }) {
           </select>
         </label>
 
-        {/* <label className="hidden md:flex items-center gap-1.5 text-xs font-medium text-ink-700 border border-canvas-200 rounded-lg px-3 py-2 hover:bg-canvas-100">
-          <Building2 size={14} />
-          <select
-            value={filters.branch}
-            onChange={(e) => updateFilters({ branch: e.target.value })}
-            className="bg-transparent outline-none"
+          <div className="hidden lg:flex items-center gap-3">
+            <span className="text-xs font-medium text-ink-500 uppercase tracking-wider">
+              {new Date().toLocaleDateString("en-US", { weekday: 'long', month: 'short', day: 'numeric' })}
+            </span>
+          </div>
+
+        <div ref={notifRef} className="relative">
+          <button
+            className="h-9 w-9 relative flex items-center justify-center rounded-lg text-ink-600 hover:bg-canvas-100"
+            onClick={() => {
+              setNotifOpen((v) => !v);
+              if (!notifOpen) loadNotifications();
+            }}
           >
-            <option>All Branches</option>
-            <option>Main Branch</option>
-            <option>Downtown</option>
-          </select>
-        </label> */}
+            <Bell size={18} />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-paprika-500 animate-pulse" />
+            )}
+          </button>
 
-
-
-        <button
-          className="h-9 w-9 relative flex items-center justify-center rounded-lg text-ink-600 hover:bg-canvas-100"
-          onClick={() => {
-            setNotifOpen((v) => !v);
-            if (!notifOpen) loadNotifications();
-          }}
-        >
-          <Bell size={18} />
-          {unreadCount > 0 && (
-            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-paprika-500 animate-pulse" />
+          {notifOpen && (
+            <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-canvas-200 rounded-xl2 shadow-card p-2 z-40">
+              <div className="flex items-center justify-between px-2 py-1.5 border-b border-canvas-100 mb-1.5">
+                <p className="text-sm font-semibold text-ink-900">Notifications</p>
+                <button 
+                  onClick={handleMarkAllRead} 
+                  className="text-xs text-paprika-600 font-medium hover:text-paprika-700 transition-colors"
+                >
+                  Mark all read
+                </button>
+              </div>
+              <div className="max-h-80 overflow-y-auto space-y-1">
+                {notifications.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-ink-400">
+                    All caught up! No notifications.
+                  </div>
+                ) : (
+                  notifications.slice(0, 8).map((n) => (
+                    <div 
+                      key={n.id} 
+                      onClick={() => handleMarkRead(n.id)}
+                      className={`px-3 py-2 rounded-lg hover:bg-canvas-50 flex gap-3 cursor-pointer items-start transition-colors ${
+                        !n.read ? "bg-paprika-50/20 border-l-4 border-l-paprika-500 font-semibold" : ""
+                      }`}
+                    >
+                      <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
+                        n.type === "low_stock" ? "bg-orange-100 text-orange-600" :
+                        n.type === "expiry" ? "bg-yellow-100 text-yellow-600" :
+                        n.type === "payment" ? "bg-blue-100 text-blue-600" :
+                        "bg-canvas-100 text-ink-500"
+                      }`}>
+                        {n.type === "low_stock" && <Package size={14} />}
+                        {n.type === "expiry" && <CalendarDays size={14} />}
+                        {n.type === "payment" && <CreditCard size={14} />}
+                        {n.type !== "low_stock" && n.type !== "expiry" && n.type !== "payment" && <Bell size={14} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-ink-800 leading-snug break-words">{n.text}</p>
+                        <p className="text-[10px] text-ink-400 mt-1 font-mono">{n.time}</p>
+                      </div>
+                      {!n.read && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-paprika-500 mt-2 shrink-0 animate-pulse" />
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="border-t border-canvas-200 mt-1.5 pt-2 px-2 pb-1 text-center">
+                <button 
+                  onClick={() => {
+                    setNotifOpen(false);
+                    navigate("/notifications");
+                  }}
+                  className="text-xs text-ink-600 hover:text-paprika-600 font-semibold transition-colors block w-full text-center"
+                >
+                  View All Notifications →
+                </button>
+              </div>
+            </div>
           )}
-        </button>
+        </div>
 
         <div className="hidden sm:flex items-center gap-2 border border-canvas-200 rounded-lg px-2.5 py-1 bg-canvas-50">
           {userAvatar && (
@@ -359,23 +431,6 @@ export default function Topbar({ onMenuClick }) {
         <button onClick={lock} className="h-9 w-9 hidden sm:flex items-center justify-center rounded-lg text-ink-600 hover:bg-canvas-100" title="Lock Screen">
           <Lock size={17} />
         </button>
-
-        {notifOpen && (
-          <div className="absolute right-4 sm:right-6 top-16 w-80 bg-white border border-canvas-200 rounded-xl2 shadow-card p-2 z-40">
-            <div className="flex items-center justify-between px-2 py-1.5">
-              <p className="text-sm font-semibold text-ink-900">Notifications</p>
-              <button onClick={handleMarkAllRead} className="text-xs text-paprika-600 font-medium hover:text-paprika-700 transition-colors">Mark all read</button>
-            </div>
-            <div className="max-h-80 overflow-y-auto space-y-0.5">
-              {notifications.map((n) => (
-                <div key={n.id} className="px-2 py-2.5 rounded-lg hover:bg-canvas-50 flex flex-col gap-0.5">
-                  <p className="text-xs text-ink-800">{n.text}</p>
-                  <p className="text-[11px] text-ink-500">{n.time}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
 

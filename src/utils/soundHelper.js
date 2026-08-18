@@ -1,25 +1,44 @@
+let globalAudioCtx = null;
+
 export const playWhatsAppSound = () => {
   try {
-    // Read sound settings from sessionStorage or localStorage
-    const kitchenSoundSession = window.sessionStorage.getItem("kitchen_soundEnabled");
+    // Read sound settings exclusively from localStorage to support cross-tab toggling
     const kitchenSoundLocal = window.localStorage.getItem("kitchen_soundEnabled");
-    
     let soundEnabled = false;
-    if (kitchenSoundSession !== null) {
-      soundEnabled = JSON.parse(kitchenSoundSession);
-    } else if (kitchenSoundLocal !== null) {
+    
+    if (kitchenSoundLocal !== null) {
       soundEnabled = JSON.parse(kitchenSoundLocal);
-    } else {
-      // Default to false to match the kitchen page's default sticky state
-      soundEnabled = false;
     }
     
     if (!soundEnabled) {
       return;
     }
 
-    const audio = new Audio('/whatsapp-message.mp3');
-    audio.play().catch(e => console.warn("Failed to play audio:", e));
+    // Play small bell using Web Audio API
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    
+    if (!globalAudioCtx) {
+      globalAudioCtx = new AudioCtx();
+    }
+    const ac = globalAudioCtx;
+    
+    // Resume audio context if it's in suspended state (browser autoplay policy)
+    if (ac.state === 'suspended') {
+      ac.resume();
+    }
+
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(880, ac.currentTime);
+    g.gain.setValueAtTime(0.0001, ac.currentTime);
+    o.connect(g);
+    g.connect(ac.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(1.0, ac.currentTime + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.5);
+    o.stop(ac.currentTime + 0.51);
   } catch (e) {
     console.warn("Audio play error:", e);
   }

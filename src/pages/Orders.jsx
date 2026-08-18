@@ -11,6 +11,8 @@ import { useDashboardFilters } from "../context/DashboardFilterContext";
 import Receipt from "../components/pos/Receipt";
 import CheckoutModal from "../components/pos/CheckoutModal";
 import api from "../api/client";
+import { useDataCache } from "../context/DataCacheContext";
+import DatePicker from "../components/ui/DatePicker";
 
 const TABS = ["All", "Dine-In", "Takeaway", "Delivery", "Phone"];
 const RETURN_REASONS = [
@@ -104,6 +106,7 @@ function SearchableSelect({ value, onChange, options, placeholder, displayKey = 
 }
 
 export default function Orders() {
+  const { getData } = useDataCache();
   const { user } = useAuth();
   const [tab, setTab] = useState("All");
   const [dateFrom, setDateFrom] = useState("");
@@ -163,12 +166,12 @@ export default function Orders() {
   const { getDateRange } = useDashboardFilters();
 
   const load = () => {
-    api.list("orders", { orderBy: "time DESC" }).then(setOrders);
+    getData("orders", { orderBy: "time DESC" }).then(setOrders);
     api.getSetting("restaurant_profile").then(setProfile);
-    api.list("customers").then(setCustomers);
-    api.list("employees", { where: { role: "Waiter" } }).then(setWaiters);
-    api.list("tables_floor").then(setTables);
-    api.list("menu_items").then(setMenuItems);
+    getData("customers").then(setCustomers);
+    getData("employees", { where: { role: "Waiter" } }).then(setWaiters);
+    getData("tables_floor").then(setTables);
+    getData("menu_items").then(setMenuItems);
   };
   useEffect(() => {
     void load();
@@ -227,8 +230,13 @@ export default function Orders() {
     const taxable = subtotal - discountAmount;
     const taxRate = profile?.taxRate ?? 0;
     const serviceRate = orderForm.type === "Dine-In" ? (profile?.serviceCharge ?? 0) : 0;
-    const taxAmt = Math.round((taxable * taxRate) / 100);
-    const serviceChargeAmt = Math.round((taxable * serviceRate) / 100);
+    const taxCalculationMethod = profile?.taxCalculationMethod || "after_discount";
+    const taxAmt = Math.round(
+      taxCalculationMethod === "before_discount"
+        ? (subtotal * taxRate) / 100
+        : (taxable * taxRate) / 100
+    );
+    const serviceChargeAmt = Math.round((subtotal * serviceRate) / 100);
     const total = taxable + taxAmt + serviceChargeAmt;
     return { subtotal, tax: taxAmt, service_charge: serviceChargeAmt, total };
   };
@@ -492,21 +500,22 @@ export default function Orders() {
         description="Track every dine-in, takeaway, delivery, and phone order in one place."
       />
 
-      <div className="flex gap-2 mb-4 overflow-x-auto">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-medium border ${
-              tab === t ? "bg-paprika-500 text-white border-paprika-500 shadow-sm" : "border-canvas-200 text-ink-600 hover:bg-canvas-100"
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
       <ModuleTable
+        actions={
+          <div className="flex gap-1.5 overflow-x-auto hide-scrollbar">
+            {TABS.map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  tab === t ? "bg-paprika-500 text-white border-paprika-500 shadow-sm" : "border-canvas-200 text-ink-600 bg-[rgb(var(--surface-card))] hover:bg-canvas-100"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        }
         columns={columns}
         data={filteredRows}
         onRowClick={handleOrderClick}
@@ -522,7 +531,7 @@ export default function Orders() {
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500 mb-1">From date</p>
               <div className="relative">
                 <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                <DatePicker   value={dateFrom} onChange={(e) = /> setDateFrom(e.target.value)}
                   className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
               </div>
             </div>
@@ -530,7 +539,7 @@ export default function Orders() {
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500 mb-1">To date</p>
               <div className="relative">
                 <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                <DatePicker   value={dateTo} onChange={(e) = /> setDateTo(e.target.value)}
                   className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
               </div>
             </div>
@@ -705,7 +714,7 @@ export default function Orders() {
                   >
                     {orderForm.status === "paid" && <option value="paid">Paid</option>}
                     {orderForm.status === "refunded" && <option value="refunded">Refunded</option>}
-                    {["unpaid", "held", "cancelled"].map((v) => (
+                    {["unpaid", "held", ...((orderForm.kitchen_status === "new" || orderForm.status === "cancelled") ? ["cancelled"] : [])].map((v) => (
                       <option key={v} value={v}>{v.charAt(0).toUpperCase() + v.slice(1)}</option>
                     ))}
                   </select>

@@ -4,6 +4,11 @@ import * as mock from "../data/mockData.js";
 let memId = 10000;
 const nextId = () => ++memId;
 
+const getLocalISODate = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 const STORAGE_KEY = "dastarkhwan-erp-store-v1";
 const SETTINGS_STORAGE_KEY = "dastarkhwan-erp-settings-v1";
 
@@ -24,11 +29,104 @@ const DEFAULT_PERMISSIONS = {
   Accountant:     { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:1 },
 };
 
+const MODULE_OVERRIDES = {
+  Owner: {},
+  Manager: {
+    "Settings":         { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Users & Roles":    { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Backup & Restore": { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+  },
+  Cashier: {
+    "Dashboard":        { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Kitchen Display":  { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Table Management": { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Menu Management":  { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Recipe Management":{ can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Inventory":        { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Suppliers":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Purchases":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Customers":        { can_view:1, can_add:1, can_edit:0, can_delete:0, can_export:0 },
+    "Employees":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Users & Roles":    { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Expenses":         { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Accounting":       { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Reports":          { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Settings":         { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Backup & Restore": { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Audit Log":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Hardware":         { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+  },
+  Waiter: {
+    "Dashboard":        { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "POS Billing":      { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Sales":            { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Kitchen Display":  { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Menu Management":  { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Recipe Management":{ can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Inventory":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Suppliers":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Purchases":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Customers":        { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Employees":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Users & Roles":    { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Expenses":         { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Accounting":       { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Reports":          { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Settings":         { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Backup & Restore": { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Audit Log":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Hardware":         { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Notifications":    { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Printing":         { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+  },
+  "Kitchen Staff": {
+    "Dashboard":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "POS Billing":      { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Sales":            { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Table Management": { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Order Management": { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Menu Management":  { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Recipe Management":{ can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Inventory":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Suppliers":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Purchases":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Customers":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Employees":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Users & Roles":    { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Expenses":         { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Accounting":       { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Reports":          { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Notifications":    { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Settings":         { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Backup & Restore": { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Audit Log":        { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Hardware":         { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Printing":         { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+  },
+  Accountant: {
+    "POS Billing":      { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Kitchen Display":  { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Table Management": { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Order Management": { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Menu Management":  { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Recipe Management":{ can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Suppliers":        { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Purchases":        { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Customers":        { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Employees":        { can_view:1, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Users & Roles":    { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Settings":         { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Backup & Restore": { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+    "Hardware":         { can_view:0, can_add:0, can_edit:0, can_delete:0, can_export:0 },
+  },
+};
+
 const buildInitialPermissions = () => {
   const rows = [];
   for (const [role, perms] of Object.entries(DEFAULT_PERMISSIONS)) {
     for (const module of MODULES) {
-      rows.push({ role, module, ...perms });
+      const overrides = MODULE_OVERRIDES[role]?.[module];
+      rows.push({ role, module, ...(overrides || perms) });
     }
   }
   return rows;
@@ -37,10 +135,10 @@ const buildInitialPermissions = () => {
 const buildInitialStore = () => {
   const initialStore = {
     users: [
-      { id: nextId(), name: "Hammadullah", role: "Owner", pin: "1234", password: "owner123", email: "owner@dastarkhwan.pk", phone: "0300-0000001", branch: "Main Branch", status: "active", last_login: "Today, 9:02 AM", profile_photo: null },
-      { id: nextId(), name: "Bilal Hussain", role: "Cashier", pin: "2345", password: "cashier123", email: "bilal@dastarkhwan.pk", phone: "0300-0000002", branch: "Main Branch", status: "active", last_login: "Today, 11:40 AM", profile_photo: null },
-      { id: nextId(), name: "Ahmed Raza", role: "Waiter", pin: "3456", password: "waiter123", email: "ahmed@dastarkhwan.pk", phone: "0300-0000003", branch: "Main Branch", status: "active", last_login: "Today, 11:52 AM", profile_photo: null },
-      { id: nextId(), name: "Chef Imran", role: "Kitchen Staff", pin: "4567", password: "kitchen123", email: "imran@dastarkhwan.pk", phone: "0300-0000004", branch: "Main Branch", status: "active", last_login: "Today, 10:15 AM", profile_photo: null },
+      { id: nextId(), name: "Hammadullah", role: "Owner", pin: "123456", password: "owner123", email: "owner@dastarkhwan.pk", phone: "0300-0000001", status: "active", last_login: "Today, 9:02 AM", profile_photo: null },
+      { id: nextId(), name: "Bilal Hussain", role: "Cashier", pin: "2345", password: "cashier123", email: "bilal@dastarkhwan.pk", phone: "0300-0000002", status: "active", last_login: "Today, 11:40 AM", profile_photo: null },
+      { id: nextId(), name: "Ahmed Raza", role: "Waiter", pin: "3456", password: "waiter123", email: "ahmed@dastarkhwan.pk", phone: "0300-0000003", status: "active", last_login: "Today, 11:52 AM", profile_photo: null },
+      { id: nextId(), name: "Chef Imran", role: "Kitchen Staff", pin: "4567", password: "kitchen123", email: "imran@dastarkhwan.pk", phone: "0300-0000004", status: "active", last_login: "Today, 10:15 AM", profile_photo: null },
     ],
     categories: mock.menuCategories.map((c) => ({ id: nextId(), name: c, printer_station: "Grill", display_order: 1 })),
     menu_items: mock.menuItems.map((m) => ({ id: nextId(), name: m.name, category: m.category, price: m.price, cost: m.cost, status: m.status, prep_time: 10, station: "Grill", image: m.img })),
@@ -131,6 +229,37 @@ const writeStoredState = (key, value) => {
 
 const store = readStoredState(STORAGE_KEY, buildInitialStore());
 
+// MIGRATION: Force update demo owner PIN and strip branches for existing databases
+if (store.users) {
+  const owner = store.users.find(u => u.role === "Owner" && u.email === "owner@dastarkhwan.pk");
+  if (owner && owner.pin === "1234") {
+    owner.pin = "123456";
+  }
+  store.users.forEach(u => {
+    if (u.branch) delete u.branch;
+  });
+  writeStoredState(STORAGE_KEY, store);
+}
+
+const findMaxId = (storeObj) => {
+  let max = 10000;
+  if (!storeObj) return max;
+  for (const table in storeObj) {
+    if (Array.isArray(storeObj[table])) {
+      for (const row of storeObj[table]) {
+        if (row && typeof row.id === "number") {
+          if (row.id > max) max = row.id;
+        } else if (row && typeof row.id === "string") {
+          const num = parseInt(row.id.replace(/\D/g, ""), 10);
+          if (!isNaN(num) && num > max) max = num;
+        }
+      }
+    }
+  }
+  return max;
+};
+memId = findMaxId(store);
+
 // Ensure new fields exist on existing stored data
 if (!store.accounts || store.accounts.length === 0) {
   store.accounts = [
@@ -154,7 +283,22 @@ if (!store.accounts || store.accounts.length === 0) {
   ];
   writeStoredState(STORAGE_KEY, store);
 }
-if (!store.role_permissions) store.role_permissions = buildInitialPermissions();
+if (!store.role_permissions) {
+  store.role_permissions = buildInitialPermissions();
+} else {
+  const cashierSettings = store.role_permissions.find((p) => p.role === "Cashier" && p.module === "Settings");
+  if (cashierSettings && cashierSettings.can_view === 1) {
+    const builtInRows = buildInitialPermissions();
+    const customRows = [];
+    for (const r of store.custom_roles || []) {
+      for (const module of MODULES) {
+        customRows.push({ role: r.name, module, can_view: 0, can_add: 0, can_edit: 0, can_delete: 0, can_export: 0 });
+      }
+    }
+    store.role_permissions = [...builtInRows, ...customRows];
+    writeStoredState(STORAGE_KEY, store);
+  }
+}
 if (!store.custom_roles) store.custom_roles = [];
 store.users = store.users.map((u) => ({
   profile_photo: null, email: "", phone: "", branch: "Main Branch", password: "",
@@ -213,17 +357,52 @@ const settingsStore = readStoredState(SETTINGS_STORAGE_KEY, {
   session_settings: { autoLockMinutes: 0 },
 });
 
-const persistStore = () => writeStoredState(STORAGE_KEY, store);
-const persistSettings = () => writeStoredState(SETTINGS_STORAGE_KEY, settingsStore);
+// Debounced persistence — batches rapid writes into a single localStorage call
+if (!store._version) store._version = 0;
 
-const delay = (v) => new Promise((res) => setTimeout(() => res(v), 80));
+let _persistTimer = null;
+const persistStore = () => {
+  store._version = (store._version || 0) + 1;
+  if (_persistTimer) clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(() => {
+    writeStoredState(STORAGE_KEY, store);
+    _persistTimer = null;
+  }, 300);
+};
+
+// Force-flush for critical moments (app close, etc.)
+const flushStore = () => {
+  if (_persistTimer) {
+    clearTimeout(_persistTimer);
+    _persistTimer = null;
+  }
+  writeStoredState(STORAGE_KEY, store);
+};
+
+// Guarantee no data loss on app close
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", flushStore);
+}
+
+let _settingsTimer = null;
+const persistSettings = () => {
+  if (_settingsTimer) clearTimeout(_settingsTimer);
+  _settingsTimer = setTimeout(() => {
+    writeStoredState(SETTINGS_STORAGE_KEY, settingsStore);
+    _settingsTimer = null;
+  }, 300);
+};
+
+const delay = (v) => Promise.resolve(v);
 
 const memoryApi = {
   isElectron: false,
+  getStoreVersion: () => store._version || 0,
+  flushStore,
   logAction: (user, module, action) => {
     store.audit_log = [{ 
       id: nextId(), 
-      time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }), 
+      time: new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }), 
       user: user || "System", 
       module, 
       action, 
@@ -232,12 +411,24 @@ const memoryApi = {
     persistStore();
   },
   pushNotification: (type, text) => {
-    const n = { id: nextId(), type, text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), read: 0 };
+    const n = { 
+      id: nextId(), 
+      type, 
+      text, 
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+      read: 0,
+      created_at: new Date().toISOString()
+    };
     store.notifications = [n, ...(store.notifications || [])];
     persistStore();
   },
   markAllNotificationsRead: () => {
     store.notifications = (store.notifications || []).map(n => ({ ...n, read: 1 }));
+    persistStore();
+    return delay(true);
+  },
+  markNotificationRead: (id) => {
+    store.notifications = (store.notifications || []).map(n => n.id === id ? { ...n, read: 1 } : n);
     persistStore();
     return delay(true);
   },
@@ -249,7 +440,7 @@ const memoryApi = {
   list: (table, opts = {}) => {
     if (table === "notifications") {
       try {
-        const prefs = store.settings?.alert_preferences || {
+        const prefs = settingsStore?.alert_preferences || {
           low_stock: true,
           expiry: true,
           payment: false,
@@ -266,9 +457,9 @@ const memoryApi = {
           for (const item of items) {
             if (Number(item.stock || 0) < threshold) {
               const alertText = `Low Stock: ${item.name} is at ${item.stock} ${item.unit} (Threshold: ${threshold} ${item.unit})`;
-              const exists = (store.notifications || []).some(n => n.type === 'low_stock' && n.text === alertText && !n.read);
+              const exists = (store.notifications || []).some(n => n.type === 'low_stock' && n.text === alertText);
               if (!exists) {
-                const n = { id: nextId(), type: 'low_stock', text: alertText, time, read: 0 };
+                const n = { id: nextId(), type: 'low_stock', text: alertText, time, read: 0, created_at: new Date().toISOString() };
                 store.notifications = [n, ...(store.notifications || [])];
               }
             }
@@ -291,16 +482,16 @@ const memoryApi = {
 
               if (diffDays <= 0) {
                 const alertText = `Expired: Batch ${batch.batch_number || 'N/A'} of ${item.name} expired on ${batch.expiry_date}.`;
-                const exists = (store.notifications || []).some(n => n.type === 'expiry' && n.text === alertText && !n.read);
+                const exists = (store.notifications || []).some(n => n.type === 'expiry' && n.text === alertText);
                 if (!exists) {
-                  const n = { id: nextId(), type: 'expiry', text: alertText, time, read: 0 };
+                  const n = { id: nextId(), type: 'expiry', text: alertText, time, read: 0, created_at: new Date().toISOString() };
                   store.notifications = [n, ...(store.notifications || [])];
                 }
               } else if (diffDays <= 3) {
                 const alertText = `Expiring Soon: Batch ${batch.batch_number || 'N/A'} of ${item.name} will expire in ${diffDays} days (${batch.expiry_date}).`;
                 const exists = (store.notifications || []).some(n => n.type === 'expiry' && n.text === alertText && !n.read);
                 if (!exists) {
-                  const n = { id: nextId(), type: 'expiry', text: alertText, time, read: 0 };
+                  const n = { id: nextId(), type: 'expiry', text: alertText, time, read: 0, created_at: new Date().toISOString() };
                   store.notifications = [n, ...(store.notifications || [])];
                 }
               }
@@ -317,7 +508,7 @@ const memoryApi = {
               const alertText = `Pending Payment: Balance of Rs. ${due.toLocaleString()} due for ${supplier.name}.`;
               const exists = (store.notifications || []).some(n => n.type === 'payment' && n.text === alertText && !n.read);
               if (!exists) {
-                const n = { id: nextId(), type: 'payment', text: alertText, time, read: 0 };
+                const n = { id: nextId(), type: 'payment', text: alertText, time, read: 0, created_at: new Date().toISOString() };
                 store.notifications = [n, ...(store.notifications || [])];
               }
             }
@@ -329,16 +520,50 @@ const memoryApi = {
       }
     }
     let rows = [...(store[table] || [])];
+    if (table === "notifications") {
+      const prefs = settingsStore?.alert_preferences || {
+        low_stock: true,
+        expiry: true,
+        payment: false,
+        closing: true,
+        printer: true,
+        threshold: 20
+      };
+      rows = rows.filter(n => {
+        if (n.type === "low_stock" && !prefs.low_stock) return false;
+        if (n.type === "expiry" && !prefs.expiry) return false;
+        if (n.type === "payment" && !prefs.payment) return false;
+        if (n.type === "printer" && !prefs.printer) return false;
+        if (n.type === "closing" && !prefs.closing) return false;
+        return true;
+      });
+    }
     if (opts.where) {
       rows = rows.filter((r) => Object.entries(opts.where).every(([k, v]) => r[k] === v));
     }
     if (opts.orderBy) {
       const [col, dir] = opts.orderBy.split(" ");
       rows.sort((a, b) => {
-        if (a[col] < b[col]) return dir === "DESC" ? 1 : -1;
-        if (a[col] > b[col]) return dir === "DESC" ? -1 : 1;
+        let va = a[col];
+        let vb = b[col];
+        if (col === "id") {
+          const numA = typeof va === "number" ? va : parseInt(String(va).replace(/\D/g, ""), 10) || 0;
+          const numB = typeof vb === "number" ? vb : parseInt(String(vb).replace(/\D/g, ""), 10) || 0;
+          return dir === "DESC" ? numB - numA : numA - numB;
+        }
+        if (va < vb) return dir === "DESC" ? 1 : -1;
+        if (va > vb) return dir === "DESC" ? -1 : 1;
         return 0;
       });
+    } else {
+      // Default: If table is notifications or audit_log, sort latest first
+      if (["notifications", "audit_log", "orders"].includes(table)) {
+        rows.sort((a, b) => {
+          const numA = typeof a.id === "number" ? a.id : parseInt(String(a.id).replace(/\D/g, ""), 10) || 0;
+          const numB = typeof b.id === "number" ? b.id : parseInt(String(b.id).replace(/\D/g, ""), 10) || 0;
+          return numB - numA;
+        });
+      }
     }
     return delay(rows);
   },
@@ -359,7 +584,7 @@ const memoryApi = {
         if (amount > 0 && row.expense_account_code && row.payment_account_code) {
           const expAccName = (store.accounts || []).find(a => a.code === row.expense_account_code)?.name || row.category || 'Expense';
           const payAccName = (store.accounts || []).find(a => a.code === row.payment_account_code)?.name || 'Cash';
-          const dateStr = row.date || new Date().toISOString().split('T')[0];
+          const dateStr = row.date || getLocalISODate();
           
           const desc = row.expense_account_code === '6004' && row.employee_name
             ? `Salary paid to ${row.employee_name} - ${row.notes || ''}`
@@ -395,6 +620,58 @@ const memoryApi = {
           
           store.journal_entries = [debitLine, creditLine, ...(store.journal_entries || [])];
         }
+      }
+
+      if (table === "customer_payments") {
+        const amt = Number(row.amount || 0);
+        const custId = row.customer_id;
+        
+        // Update customer credit/debt
+        const cust = (store.customers || []).find(c => String(c.id) === String(custId));
+        if (cust) {
+          cust.credit = Math.max(0, Number(cust.credit || 0) - amt);
+          cust.total_paid = Number(cust.total_paid || 0) + amt;
+        }
+
+        // Add journal entries
+        const isCash = (row.payment_method || "").toLowerCase().includes("cash");
+        const bankOrCashCode = isCash ? "1001" : "1002";
+        const bankOrCashName = isCash ? "Cash in Drawer" : "Bank Account (Main)";
+        const d = row.date || getLocalISODate();
+        
+        const journalEntries = [
+          {
+            id: nextId(),
+            date: d,
+            reference_type: "Customer Payment",
+            reference_id: row.id,
+            reference: `PAY-${row.id}`,
+            account_code: bankOrCashCode,
+            account_name: bankOrCashName,
+            debit: amt,
+            credit: 0,
+            description: `Credit payment from ${row.customer_name || "Customer"} (Ref #${row.id})`,
+            created_by: user,
+            created_at: new Date().toISOString()
+          },
+          {
+            id: nextId(),
+            date: d,
+            reference_type: "Customer Payment",
+            reference_id: row.id,
+            reference: `PAY-${row.id}`,
+            account_code: "1003",
+            account_name: "Accounts Receivable",
+            debit: 0,
+            credit: amt,
+            description: `Credit payment from ${row.customer_name || "Customer"} (Ref #${row.id})`,
+            created_by: user,
+            created_at: new Date().toISOString()
+          }
+        ];
+        
+        if (!store.journal_entries) store.journal_entries = [];
+        store.journal_entries = [journalEntries[0], journalEntries[1], ...store.journal_entries];
       }
     }
     persistStore();
@@ -460,11 +737,28 @@ const memoryApi = {
               }).filter(b => b.qty > 0);
             }
             updated.batches = updatedBatches;
-            updated.status = newStock <= 0 ? "critical" : newStock <= (updated.reorder || 10) ? "low" : "in_stock";
-            
+          }
+          
+          // PHASE 2 FIX: Auto-calculate inventory status based on stock levels (Issue 4.1)
+          const currentStock = Number(updated.stock || 0);
+          const minStock = Number(updated.min_stock || 0);
+          const reorderLevel = Number(updated.reorder || 0);
+          
+          if (currentStock <= 0) {
+            updated.status = "critical";
+          } else if (currentStock <= minStock) {
+            updated.status = "critical";
+          } else if (currentStock <= reorderLevel) {
+            updated.status = "low";
+          } else {
+            updated.status = "in_stock";
+          }
+          updated.updated_at = new Date().toISOString();
+          
+          if (diff !== 0) {
             const txRecord = {
               id: nextId(),
-              date: new Date().toISOString().split("T")[0],
+              date: getLocalISODate(),
               ingredient_id: inv.id,
               name: inv.name,
               type: "Adjustment",
@@ -552,7 +846,14 @@ const memoryApi = {
     return delay({ success: true });
   },
   resetDefaultPermissions: () => {
-    store.role_permissions = buildInitialPermissions();
+    const builtInRows = buildInitialPermissions();
+    const customRows = [];
+    for (const r of store.custom_roles || []) {
+      for (const module of MODULES) {
+        customRows.push({ role: r.name, module, can_view: 0, can_add: 0, can_edit: 0, can_delete: 0, can_export: 0 });
+      }
+    }
+    store.role_permissions = [...builtInRows, ...customRows];
     persistStore();
     return delay({ success: true });
   },
@@ -787,7 +1088,7 @@ const memoryApi = {
           const tendered = full.tendered !== null ? Number(full.tendered) : tot;
           
           let entries = [];
-          const dateNow = new Date().toISOString().split('T')[0];
+          const dateNow = getLocalISODate();
           const refId = full.id;
           
           // Payment / Receivables
@@ -827,6 +1128,32 @@ const memoryApi = {
   updateOrderWithItems: (orderId, orderUpdates, items) => {
     const existingOrder = store.orders.find((o) => o.id === orderId);
     if (!existingOrder) return delay(null);
+
+    if (orderUpdates.status === "cancelled" && existingOrder.status !== "cancelled") {
+      if (existingOrder.kitchen_status && existingOrder.kitchen_status !== "new") {
+        throw new Error("Only new orders can be cancelled.");
+      }
+      if (existingOrder.customer_id && ['paid', 'completed', 'served'].includes(existingOrder.status)) {
+        store.customers = store.customers.map(c => {
+          if (c.id === existingOrder.customer_id) {
+            const actualPaid = (existingOrder.tendered !== null ? Number(existingOrder.tendered) : Number(existingOrder.total)) - (Number(existingOrder.change_due) || 0);
+            const billedAmount = Number(existingOrder.total);
+            const creditIncrease = billedAmount - actualPaid;
+            
+            return {
+              ...c,
+              visits: Math.max(0, (c.visits || 0) - 1),
+              points: Math.max(0, (c.points || 0) - Math.floor(billedAmount / 100)),
+              total_billed: Math.max(0, (c.total_billed || 0) - billedAmount),
+              total_paid: Math.max(0, (c.total_paid || 0) - actualPaid),
+              credit: Math.max(0, (c.credit || 0) - creditIncrease)
+            };
+          }
+          return c;
+        });
+      }
+    }
+
     const updatedOrder = { ...existingOrder, ...orderUpdates };
     store.orders = store.orders.map((o) => (o.id === orderId ? updatedOrder : o));
     store.order_items = [
@@ -878,12 +1205,18 @@ const memoryApi = {
     const po = {
       id: poId,
       supplier: poData.supplier,
-      date: poData.date || new Date().toISOString().split("T")[0],
+      date: poData.date || getLocalISODate(),
       status: poData.status || "draft",
       total: Number(poData.total || 0),
       was_received: wasAlreadyReceived || isNowReceiving,
       received_at: isNowReceiving ? new Date().toISOString() : (existingPo?.received_at || null),
       created_at: existingPo?.created_at || new Date().toISOString(),
+      amount_paid_on_receive: Number(poData.amount_paid_on_receive || 0),
+      payment_method_on_receive: poData.payment_method_on_receive || "Cash",
+      payment_term: poData.payment_term || "Cash",
+      invoice_number: poData.invoice_number || null,
+      special_note: poData.special_note || null,
+      payment_details: poData.payment_details || null,
     };
 
     if (existingPo) {
@@ -936,47 +1269,74 @@ const memoryApi = {
 
       // Update supplier due balance and post journal entries
       if (po.supplier) {
+        const addDue = Number(po.total) - Number(po.amount_paid_on_receive || 0);
         store.suppliers = store.suppliers.map(s =>
           s.name === po.supplier
-            ? { ...s, due: Number(s.due || 0) + Number(po.total) }
+            ? { ...s, due: Number(s.due || 0) + addDue }
             : s
         );
         
         // Post journal entries
-        const dateNow = po.date || new Date().toISOString().split("T")[0];
+        const dateNow = po.date || getLocalISODate();
         const poTot = Number(po.total || 0);
+        const paid = Number(po.amount_paid_on_receive || 0);
+        const isCash = (po.payment_method_on_receive || '').toLowerCase().includes('cash');
+        const bankOrCashCode = isCash ? '1001' : '1002';
+        const bankOrCashName = isCash ? 'Cash in Drawer' : 'Bank Account (Main)';
+
         if (poTot > 0) {
-          const debitLine = {
-            id: nextId(),
-            date: dateNow,
-            reference_type: 'PO',
-            reference_id: poId,
-            reference: `PO-${poId}`,
-            account_code: '1004',
-            account_name: 'Inventory Assets',
-            debit: poTot,
-            credit: 0,
-            description: `Received PO #${poId} from ${po.supplier}`,
-            created_by: 'System'
-          };
-          
-          const creditLine = {
-            id: nextId(),
-            date: dateNow,
-            reference_type: 'PO',
-            reference_id: poId,
-            reference: `PO-${poId}`,
-            account_code: '2001',
-            account_name: 'Accounts Payable',
-            debit: 0,
-            credit: poTot,
-            description: `Received PO #${poId} from ${po.supplier}`,
-            created_by: 'System'
-          };
-          
-          store.journal_entries = [debitLine, creditLine, ...(store.journal_entries || [])];
+          const journalEntries = [
+            {
+              id: nextId(),
+              date: dateNow,
+              reference_type: 'PO',
+              reference_id: poId,
+              reference: `PO-${poId}`,
+              account_code: '1004',
+              account_name: 'Inventory Assets',
+              debit: poTot,
+              credit: 0,
+              description: `Received PO #${poId} from ${po.supplier}`,
+              created_by: 'System'
+            }
+          ];
+
+          if (paid > 0) {
+            journalEntries.push({
+              id: nextId(),
+              date: dateNow,
+              reference_type: 'PO',
+              reference_id: poId,
+              reference: `PO-${poId}`,
+              account_code: bankOrCashCode,
+              account_name: bankOrCashName,
+              debit: 0,
+              credit: paid,
+              description: `Payment for PO #${poId}`,
+              created_by: 'System'
+            });
+          }
+
+          if (poTot - paid > 0) {
+            journalEntries.push({
+              id: nextId(),
+              date: dateNow,
+              reference_type: 'PO',
+              reference_id: poId,
+              reference: `PO-${poId}`,
+              account_code: '2001',
+              account_name: 'Accounts Payable',
+              debit: 0,
+              credit: poTot - paid,
+              description: `Payable for PO #${poId}`,
+              created_by: 'System'
+            });
+          }
+
+          store.journal_entries = [...journalEntries, ...(store.journal_entries || [])];
         }
       }
+
 
       // Log in Audit Log
       store.audit_log = [{
@@ -1061,6 +1421,12 @@ const memoryApi = {
       const lineAmount = returnQty * Number(ret.cost || 0);
       totalReturnAmount += lineAmount;
 
+      // Validate stock before deducting
+      const invItem = store.inventory_items.find(inv => inv.id === ret.inventory_item_id);
+      if (!invItem || Number(invItem.stock || 0) < returnQty) {
+        throw new Error(`Cannot return "${ret.name}". Available stock is ${invItem ? invItem.stock : 0}, which is less than the return quantity (${returnQty}).`);
+      }
+
       // Deduct returned qty from inventory stock
       store.inventory_items = store.inventory_items.map(inv => {
         if (inv.id === ret.inventory_item_id) {
@@ -1087,13 +1453,27 @@ const memoryApi = {
       });
     }
 
-    // Deduct return amount from supplier due balance (if credit note / deduct due)
-    if (po.supplier && totalReturnAmount > 0 && refundMode !== "Cash Refund") {
-      store.suppliers = store.suppliers.map(s =>
-        s.name === po.supplier
-          ? { ...s, due: Math.max(0, Number(s.due || 0) - totalReturnAmount) }
-          : s
-      );
+    // Calculate how much goes to reducing supplier due vs cash refund
+    let dueDeducted = 0;
+    let cashRefunded = 0;
+
+    if (refundMode === "Cash Refund" || !po.supplier) {
+      cashRefunded = totalReturnAmount;
+    } else if (po.supplier && totalReturnAmount > 0) {
+      let supplierFound = false;
+      store.suppliers = store.suppliers.map(s => {
+        if (s.name === po.supplier) {
+          supplierFound = true;
+          const currentDue = Number(s.due || 0);
+          dueDeducted = Math.min(currentDue, totalReturnAmount);
+          cashRefunded = totalReturnAmount - dueDeducted;
+          return { ...s, due: Math.max(0, currentDue - totalReturnAmount) };
+        }
+        return s;
+      });
+      if (!supplierFound) {
+        cashRefunded = totalReturnAmount;
+      }
     }
 
     // Check if PO is fully or partially returned
@@ -1137,6 +1517,60 @@ const memoryApi = {
 
     memoryApi.pushNotification("info", `Purchase Return recorded for PO #${poId}. Stock & supplier balance updated.`);
 
+    // Post journal entries for this purchase return
+    if (totalReturnAmount > 0) {
+      const dateNow = getLocalISODate();
+      const journalEntries = [];
+
+      // Debit: reduce Accounts Payable
+      if (dueDeducted > 0) {
+        journalEntries.push({
+          id: nextId(),
+          date: dateNow,
+          reference_type: "Purchase Return",
+          reference_id: returnRecord.id,
+          account_code: "2001",
+          account_name: "Accounts Payable",
+          debit: dueDeducted,
+          credit: 0,
+          description: `Purchase Return for PO #${poId} (Due settled)`,
+          created_by: "System"
+        });
+      }
+
+      // Debit: increase Cash (excess over due, or full cash refund)
+      if (cashRefunded > 0) {
+        journalEntries.push({
+          id: nextId(),
+          date: dateNow,
+          reference_type: "Purchase Return",
+          reference_id: returnRecord.id,
+          account_code: "1001",
+          account_name: "Cash in Drawer",
+          debit: cashRefunded,
+          credit: 0,
+          description: `Purchase Return for PO #${poId} (Cash refund)`,
+          created_by: "System"
+        });
+      }
+
+      // Credit: reduce COGS (goods are back, cost is reversed)
+      journalEntries.push({
+        id: nextId(),
+        date: dateNow,
+        reference_type: "Purchase Return",
+        reference_id: returnRecord.id,
+        account_code: "5001",
+        account_name: "Cost of Goods Sold",
+        debit: 0,
+        credit: totalReturnAmount,
+        description: `Purchase Return for PO #${poId} — stock reversed`,
+        created_by: "System"
+      });
+      if (!store.journal_entries) store.journal_entries = [];
+      store.journal_entries = [...store.journal_entries, ...journalEntries];
+    }
+
     persistStore();
     return delay({ success: true, return: returnRecord, po: updatedPo });
   },
@@ -1158,24 +1592,15 @@ const memoryApi = {
       amount,
       payment_method: data.payment_method || "Cash",
       notes: data.notes || "",
-      date: data.date || new Date().toISOString().split("T")[0],
+      date: data.date || getLocalISODate(),
       created_at: new Date().toISOString()
     };
     if (!store.supplier_payments) store.supplier_payments = [];
     store.supplier_payments = [paymentRecord, ...store.supplier_payments];
 
-    const expenseRecord = {
-      id: nextId(),
-      category: "Supplier Payment",
-      amount,
-      date: data.date || new Date().toISOString().split("T")[0],
-      paid_by: meta.user || "System",
-      notes: `Payment to supplier ${supplier.name}. Notes: ${data.notes || "None"}`
-    };
-    store.expenses = [expenseRecord, ...(store.expenses || [])];
 
     // Post journal entry for supplier payment
-    const dateNow = data.date || new Date().toISOString().split("T")[0];
+    const dateNow = data.date || getLocalISODate();
     const isCash = (data.payment_method || 'Cash').toLowerCase().includes('cash');
     const bankOrCashCode = isCash ? '1001' : '1002';
     const bankOrCashName = isCash ? 'Cash in Drawer' : 'Bank Account (Main)';
@@ -1235,14 +1660,22 @@ const memoryApi = {
     // Reverse customer credit/balance for the refunded amount
     const refundedOrder = store.orders.find((o) => o.id === orderId);
     if (refundedOrder && refundedOrder.customer_id) {
+      const orderTotal = Number(refundedOrder.total || 0);
+      const actualPaid = (refundedOrder.tendered !== null ? Number(refundedOrder.tendered) : orderTotal) - (Number(refundedOrder.change_due) || 0);
+      const creditOnOrder = Math.max(0, orderTotal - actualPaid);
+      const returnRatio = orderTotal > 0 ? amount / orderTotal : 1;
+
+      // Proportional amounts for this return
+      const paidToReverse = Math.round(actualPaid * returnRatio);
+      const creditToReverse = Math.round(creditOnOrder * returnRatio);
+
       store.customers = store.customers.map(c => {
         if (c.id === refundedOrder.customer_id) {
-          // Reduce credit by refunded amount (customer owes less now)
-          const newCredit = Math.max(0, (c.credit || 0) - amount);
           return {
             ...c,
             total_billed: Math.max(0, (c.total_billed || 0) - amount),
-            credit: newCredit,
+            total_paid: Math.max(0, (c.total_paid || 0) - paidToReverse),
+            credit: Math.max(0, (c.credit || 0) - creditToReverse),
           };
         }
         return c;
@@ -1285,6 +1718,94 @@ const memoryApi = {
       }
     }
 
+    // Post smart journal entries for sales return
+    // Look up what was actually paid in cash vs. credit for this order
+    if (amount > 0) {
+      const dateNow = getLocalISODate();
+      const orderTotal = Number(refundedOrder.total || 0);
+      const returnRatio = orderTotal > 0 ? amount / orderTotal : 1;
+
+      // Find original cash/bank received for this order from journal entries
+      let originalCashReceived = 0;
+      let originalArRecorded = 0;
+      let arSettled = 0; // AR credits from customer payments
+      (store.journal_entries || []).forEach(je => {
+        if (je.reference_type === 'Order' && String(je.reference_id) === String(orderId)) {
+          if (je.account_code === '1001' || je.account_code === '1002') {
+            originalCashReceived += Number(je.debit || 0);
+          }
+          if (je.account_code === '1003') {
+            originalArRecorded += Number(je.debit || 0);
+          }
+        }
+        // Customer payments that settled this order's AR
+        if (je.reference_type === 'Customer Payment' && je.account_code === '1003') {
+          arSettled += Number(je.credit || 0);
+        }
+      });
+
+      // If customer settled AR, that money is now in cash — must be refunded from cash too
+      // Cap arSettled to what was originally recorded for this order's AR
+      const arSettledForThisOrder = Math.min(arSettled, originalArRecorded);
+      const unsettledAr = Math.max(0, originalArRecorded - arSettledForThisOrder);
+
+      // Proportional amounts based on return ratio
+      const cashToRefund = Math.round((originalCashReceived + arSettledForThisOrder) * returnRatio);
+      const arToReverse = Math.round(unsettledAr * returnRatio);
+
+      const salesReturnEntries = [
+        // Debit: Revenue reversed
+        {
+          id: nextId(),
+          date: dateNow,
+          reference_type: "Sales Return",
+          reference_id: ret.id,
+          account_code: "4001",
+          account_name: "Food Sales Revenue",
+          debit: amount,
+          credit: 0,
+          description: `Sales Return on Order #${orderId}`,
+          created_by: "System"
+        }
+      ];
+
+      // Credit: Cash/Bank — only the amount actually received as cash
+      if (cashToRefund > 0) {
+        const isCash = (refundedOrder.payment_method || 'cash').toLowerCase().includes('cash');
+        salesReturnEntries.push({
+          id: nextId(),
+          date: dateNow,
+          reference_type: "Sales Return",
+          reference_id: ret.id,
+          account_code: isCash ? "1001" : "1002",
+          account_name: isCash ? "Cash in Drawer" : "Bank Account (Main)",
+          debit: 0,
+          credit: cashToRefund,
+          description: `Refund paid for Order #${orderId}`,
+          created_by: "System"
+        });
+      }
+
+      // Credit: AR — clear unsettled receivable (customer no longer owes this)
+      if (arToReverse > 0) {
+        salesReturnEntries.push({
+          id: nextId(),
+          date: dateNow,
+          reference_type: "Sales Return",
+          reference_id: ret.id,
+          account_code: "1003",
+          account_name: "Accounts Receivable",
+          debit: 0,
+          credit: arToReverse,
+          description: `Receivable cleared for returned Order #${orderId}`,
+          created_by: "System"
+        });
+      }
+
+      if (!store.journal_entries) store.journal_entries = [];
+      store.journal_entries = [...store.journal_entries, ...salesReturnEntries];
+    }
+
     persistStore();
     return delay({ order: store.orders.find((o) => o.id === orderId), return: ret });
   },
@@ -1325,6 +1846,148 @@ const memoryApi = {
     return delay({ success: true });
   },
   updateOrderStatus: (id, status) => {
+    const order = store.orders.find((o) => o.id === id);
+    if (!order) return delay(null);
+
+    if (status === "cancelled") {
+      if (order.kitchen_status && order.kitchen_status !== "new") {
+        throw new Error("Only new orders can be cancelled.");
+      }
+      if (order.status !== "cancelled") {
+        if (order.customer_id && ['paid', 'completed', 'served'].includes(order.status)) {
+          store.customers = store.customers.map(c => {
+            if (c.id === order.customer_id) {
+              const actualPaid = (order.tendered !== null ? Number(order.tendered) : Number(order.total)) - (Number(order.change_due) || 0);
+              const billedAmount = Number(order.total);
+              const creditIncrease = billedAmount - actualPaid;
+              
+              return {
+                ...c,
+                visits: Math.max(0, (c.visits || 0) - 1),
+                points: Math.max(0, (c.points || 0) - Math.floor(billedAmount / 100)),
+                total_billed: Math.max(0, (c.total_billed || 0) - billedAmount),
+                total_paid: Math.max(0, (c.total_paid || 0) - actualPaid),
+                credit: Math.max(0, (c.credit || 0) - creditIncrease)
+              };
+            }
+            return c;
+          });
+        }
+      }
+
+      // Post reversal journal entries for cancelled paid orders
+      if (['paid', 'completed', 'served'].includes(order.status)) {
+        const cancelTotal = Number(order.total || 0);
+        if (cancelTotal > 0) {
+          const dateNow = getLocalISODate();
+
+          // Find original cash/bank received and AR for this order
+          let originalCashReceived = 0;
+          let originalArRecorded = 0;
+          let arSettled = 0;
+          (store.journal_entries || []).forEach(je => {
+            if (je.reference_type === 'Order' && String(je.reference_id) === String(id)) {
+              if (je.account_code === '1001' || je.account_code === '1002') {
+                originalCashReceived += Number(je.debit || 0);
+              }
+              if (je.account_code === '1003') {
+                originalArRecorded += Number(je.debit || 0);
+              }
+            }
+            if (je.reference_type === 'Customer Payment' && je.account_code === '1003') {
+              arSettled += Number(je.credit || 0);
+            }
+          });
+
+          const arSettledForThisOrder = Math.min(arSettled, originalArRecorded);
+          const unsettledAr = Math.max(0, originalArRecorded - arSettledForThisOrder);
+          const cashToRefund = originalCashReceived + arSettledForThisOrder;
+
+          const cancelEntries = [
+            // Debit: Revenue reversed
+            {
+              id: nextId(),
+              date: dateNow,
+              reference_type: "Order Cancel",
+              reference_id: id,
+              account_code: "4001",
+              account_name: "Food Sales Revenue",
+              debit: cancelTotal,
+              credit: 0,
+              description: `Cancelled Order #${id} — revenue reversed`,
+              created_by: "System"
+            }
+          ];
+
+          if (cashToRefund > 0) {
+            const isCash = (order.payment_method || 'cash').toLowerCase().includes('cash');
+            cancelEntries.push({
+              id: nextId(),
+              date: dateNow,
+              reference_type: "Order Cancel",
+              reference_id: id,
+              account_code: isCash ? "1001" : "1002",
+              account_name: isCash ? "Cash in Drawer" : "Bank Account (Main)",
+              debit: 0,
+              credit: cashToRefund,
+              description: `Refund for cancelled Order #${id}`,
+              created_by: "System"
+            });
+          }
+
+          if (unsettledAr > 0) {
+            cancelEntries.push({
+              id: nextId(),
+              date: dateNow,
+              reference_type: "Order Cancel",
+              reference_id: id,
+              account_code: "1003",
+              account_name: "Accounts Receivable",
+              debit: 0,
+              credit: unsettledAr,
+              description: `Receivable cleared for cancelled Order #${id}`,
+              created_by: "System"
+            });
+          }
+
+          // Reverse tax entries if present
+          const tTax = Number(order.tax || 0);
+          const tSc = Number(order.service_charge || 0);
+          if (tTax > 0) {
+            cancelEntries.push({
+              id: nextId(),
+              date: dateNow,
+              reference_type: "Order Cancel",
+              reference_id: id,
+              account_code: "2002",
+              account_name: "GST/Sales Tax Payable",
+              debit: tTax,
+              credit: 0,
+              description: `Tax reversed for cancelled Order #${id}`,
+              created_by: "System"
+            });
+          }
+          if (tSc > 0) {
+            cancelEntries.push({
+              id: nextId(),
+              date: dateNow,
+              reference_type: "Order Cancel",
+              reference_id: id,
+              account_code: "2003",
+              account_name: "Service Charge Payable",
+              debit: tSc,
+              credit: 0,
+              description: `Service charge reversed for cancelled Order #${id}`,
+              created_by: "System"
+            });
+          }
+
+          if (!store.journal_entries) store.journal_entries = [];
+          store.journal_entries = [...cancelEntries, ...(store.journal_entries || [])];
+        }
+      }
+    }
+
     store.orders = store.orders.map((o) => (o.id === id ? { ...o, status } : o));
     persistStore();
     return delay(store.orders.find((o) => o.id === id));
@@ -1337,7 +2000,7 @@ const memoryApi = {
 
   addInventoryTransaction: (tx) => {
     // 1. Log the transaction
-    const newTx = { id: nextId(), date: new Date().toISOString().split("T")[0], ...tx };
+    const newTx = { id: nextId(), date: getLocalISODate(), ...tx };
     store.inventory_transactions = [ newTx, ...(store.inventory_transactions || []) ];
 
     // 2. Adjust inventory stock & batches
@@ -1453,7 +2116,7 @@ const memoryApi = {
     }
 
     // Log Transactions
-    const dateStr = new Date().toISOString().split("T")[0];
+    const dateStr = getLocalISODate();
     const txOut = {
       id: nextId(),
       date: dateStr,
@@ -1489,7 +2152,7 @@ const memoryApi = {
     // 1. Log the audit record
     const record = {
       id: nextId(),
-      date: data.date || new Date().toISOString().split("T")[0],
+      date: data.date || getLocalISODate(),
       status: data.status || "draft",
       approved_by: data.approved_by || "Hammadullah",
       notes: data.notes || "",
@@ -1535,7 +2198,7 @@ const memoryApi = {
             // Automatically log an adjustment transaction
             const txRecord = {
               id: nextId(),
-              date: new Date().toISOString().split("T")[0],
+              date: getLocalISODate(),
               ingredient_id: inv.id,
               name: inv.name,
               type: "Adjustment",
@@ -1561,7 +2224,7 @@ const memoryApi = {
       name: data.name,
       batch_number: data.batch_number || `BATCH-${Date.now().toString().slice(-4)}`,
       supplier: data.supplier || "Metro Cash & Carry",
-      purchase_date: data.purchase_date || new Date().toISOString().split("T")[0],
+      purchase_date: data.purchase_date || getLocalISODate(),
       expiry_date: data.expiry_date,
       qty: Number(data.qty || 0),
       unit: data.unit,
@@ -1590,7 +2253,7 @@ const memoryApi = {
       // Auto-log a stock transaction for the expiry batch arrival
       const txRecord = {
         id: nextId(),
-        date: new Date().toISOString().split("T")[0],
+        date: getLocalISODate(),
         ingredient_id: inv.id,
         name: inv.name,
         type: "Stock In",
@@ -1703,8 +2366,276 @@ const memoryApi = {
   getVersion: () => delay("0.1.0 (browser preview)"),
   getDeviceName: () => delay("Browser-Dev"),
   getPrinters: () => delay([]),
+  clearData: () => {
+    store.orders = [];
+    store.order_items = [];
+    store.kitchen_tickets = [];
+    store.notifications = [];
+    store.audit_log = [];
+    store.physical_counts = [];
+    store.inventory_transactions = [];
+    store.expiry_batches = [];
+    store.purchase_orders = [];
+    store.purchase_order_items = [];
+    store.purchase_returns = [];
+    store.sales_returns = [];
+    store.supplier_payments = [];
+    store.customer_payments = [];
+    store.cashier_shifts = [];
+    store.journal_entries = [];
+    store.expenses = [];
+    store.menu_items = [];
+    store.categories = [];
+    store.inventory_items = [];
+    store.suppliers = [];
+    store.customers = [];
+    store.employees = [];
+    store.recipes = [];
+    store.sequences = {};
+
+    store.users = (store.users || []).filter(u => u.role === "Owner");
+    if (store.users.length === 0) {
+      store.users = [
+        { id: 10001, name: "Hammadullah", role: "Owner", pin: "123456", password: "owner123", email: "owner@dastarkhwan.pk", phone: "0300-0000001", status: "active", last_login: "Just now", profile_photo: null }
+      ];
+    } else {
+      store.users[0].pin = "123456";
+      store.users[0].password = "owner123";
+    }
+
+    if (settingsStore) {
+      settingsStore.alert_preferences = {
+        low_stock: true,
+        expiry: true,
+        payment: false,
+        closing: true,
+        printer: true,
+        threshold: 20
+      };
+      settingsStore.session_settings = { autoLockMinutes: 0 };
+      settingsStore.restaurant_profile = {
+        name: "Dastarkhwan Restaurant",
+        address: "University Road, Peshawar",
+        phone: "091-1234567",
+        ntn: "1234567-8",
+        currency: "PKR",
+        taxRate: 0,
+        serviceCharge: 0,
+        taxCalculationMethod: "after_discount",
+        receiptFooter: "Thank you for dining with us — visit again!",
+        showLogo: true,
+        showOwnerInfo: true,
+        showTaxBreakdown: true,
+        showCashierName: true,
+        showQrCode: false,
+      };
+    }
+
+    persistStore();
+    persistSettings();
+    memId = 10000;
+
+    localStorage.removeItem("dastarkhwan-remembered-user");
+    localStorage.removeItem("active_pos_order_id");
+    localStorage.removeItem("theme-preference");
+    localStorage.removeItem("kitchen_soundEnabled");
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith("dastarkhwan-") || key.endsWith("_visible_cols"))) {
+        localStorage.removeItem(key);
+      }
+    }
+    return delay({ success: true });
+  },
+
+  getDashboardSummary: (dateRange) => {
+    const { start, end } = dateRange || {};
+
+    const orders = store.orders || [];
+    const expenses = store.expenses || [];
+    const menuItems = store.menu_items || [];
+    const orderItems = store.order_items || [];
+    const journalEntries = store.journal_entries || [];
+
+    const parseDate = (v) => {
+      if (!v) return null;
+      if (v instanceof Date) return v;
+      if (typeof v === 'number') return new Date(v < 1e12 ? v * 1000 : v);
+      if (typeof v === 'string') {
+        const cleaned = v.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+          const parts = cleaned.split('-');
+          return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        }
+        const n = Number(v);
+        if (!Number.isNaN(n)) return new Date(n < 1e12 ? n * 1000 : n);
+        const d = new Date(v);
+        if (!Number.isNaN(d.getTime())) return d;
+        const fallback = new Date(cleaned.replace(" ", "T"));
+        return Number.isNaN(fallback.getTime()) ? null : fallback;
+      }
+      return null;
+    };
+
+    const getOrderDate = (order) => {
+      const candidates = [order?.created_at, order?.createdAt, order?.date, order?.order_date, order?.time];
+      for (const value of candidates) {
+        if (!value) continue;
+        if (typeof value === "string") {
+          const direct = parseDate(value);
+          if (direct) return direct;
+          const timeMatch = value.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i);
+          if (timeMatch) {
+            const now = new Date();
+            const hour = Number(timeMatch[1]);
+            const minute = Number(timeMatch[2] || 0);
+            const period = timeMatch[3]?.toUpperCase();
+            const normalizedHour = period === "PM" && hour < 12 ? hour + 12 : period === "AM" && hour === 12 ? 0 : hour;
+            const fallback = new Date(now);
+            fallback.setHours(normalizedHour, minute, 0, 0);
+            return fallback;
+          }
+        }
+      }
+      return null;
+    };
+
+    const getOrderSaleValue = (order) => {
+      const total = Number(order?.total ?? order?.amount ?? 0) || 0;
+      const refund = Number(order?.refunded_total ?? order?.refund_amount ?? 0) || 0;
+      return Math.max(0, total - refund);
+    };
+
+    const currentOrdersList = orders.filter((o) => {
+      if (o.status !== "paid") return false;
+      if (!start || !end) return true;
+      const d = getOrderDate(o);
+      return d && d >= start && d <= end;
+    });
+
+    const totalRevenue = currentOrdersList.reduce((s, o) => s + getOrderSaleValue(o), 0);
+    const orderCount = currentOrdersList.length;
+    const avgOrderValue = orderCount ? Math.round(totalRevenue / orderCount) : 0;
+
+    let cashPosition = 0;
+    let accountsReceivable = 0;
+    let accountsPayable = 0;
+
+    journalEntries.forEach(je => {
+      const debit = Number(je.debit || 0);
+      const credit = Number(je.credit || 0);
+      if (je.account_code === '1001' || je.account_code === '1002') cashPosition += debit - credit;
+      if (je.account_code === '1003') accountsReceivable += debit - credit;
+      if (je.account_code === '2001') accountsPayable += credit - debit;
+    });
+
+    const currentOrderItemIds = new Set(currentOrdersList.map((o) => o.id));
+    const grouped = orderItems
+      .filter((it) => currentOrderItemIds.has(it.order_id))
+      .reduce((acc, item) => {
+        const menuId = item.menu_item_id || null;
+        const key = menuId ? `id:${menuId}` : `name:${item.name || "Unknown"}`;
+        if (!acc[key]) acc[key] = {
+          name: menuId ? (menuItems.find((m) => String(m.id) === String(menuId))?.name || item.name || "Unknown") : (item.name || "Unknown"),
+          qty: 0,
+          revenue: 0,
+          menu_item_id: menuId,
+        };
+        acc[key].qty     += Number(item.qty || 1);
+        acc[key].revenue += Number(item.price || 0) * Number(item.qty || 1);
+        return acc;
+      }, {});
+      
+    const topSellingItems = Object.values(grouped)
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5);
+      
+    const rev = currentOrdersList.reduce((acc, o) => {
+      if (o.payment_details && String(o.payment_details).startsWith("[")) {
+        try {
+          const splits = JSON.parse(o.payment_details);
+          splits.forEach((s) => {
+            const m = s.method || "Cash";
+            acc[m] = (acc[m] || 0) + Number(s.amount || 0);
+          });
+          return acc;
+        } catch (_) {}
+      }
+      const rawMethod = o.payment_method || "Cash";
+      const key = ["Cash", "Card", "Wallet", "Credit"].includes(rawMethod) ? rawMethod : "Cash";
+      acc[key] = (acc[key] || 0) + Math.max(0, Number(o.total || 0) - Number(o.refunded_total || 0));
+      return acc;
+    }, {});
+    const rTotal = Object.values(rev).reduce((s, v) => s + v, 0) || 0;
+    const revenueByPaymentMethod = rTotal ? Object.entries(rev)
+      .map(([name, value]) => ({ name, value: Math.round((value / rTotal) * 100) }))
+      .sort((a, b) => b.value - a.value) : [];
+
+    const pendingOrders = currentOrdersList.filter((o) => o.kitchen_status === "new" || o.status === "new").length;
+
+    return delay({
+      totalRevenue,
+      orderCount,
+      avgOrderValue,
+      cashPosition,
+      accountsReceivable,
+      accountsPayable,
+      topSellingItems,
+      revenueByPaymentMethod,
+      pendingOrders
+    });
+  },
 };
 
-const api = typeof window !== "undefined" && window.api ? window.api : memoryApi;
+const callbacks = [];
+export const onInvalidate = (cb) => {
+  callbacks.push(cb);
+  return () => {
+    const idx = callbacks.indexOf(cb);
+    if (idx !== -1) callbacks.splice(idx, 1);
+  };
+};
+
+const notify = (table) => {
+  callbacks.forEach((cb) => cb(table));
+};
+
+const rawApi = typeof window !== "undefined" && window.api ? window.api : memoryApi;
+
+const api = { ...rawApi, onInvalidate };
+
+if (typeof window !== "undefined" && window.api) {
+  // Wrap simple modifiers
+  const overrides = ["create", "update", "remove"];
+  overrides.forEach((method) => {
+    if (rawApi[method]) {
+      api[method] = async (table, ...args) => {
+        const res = await rawApi[method](table, ...args);
+        notify(table);
+        return res;
+      };
+    }
+  });
+
+  // Wrap custom modifiers
+  const customOverrides = [
+    { method: "createOrderWithItems", tables: ["orders", "order_items", "tables_floor", "customers"] },
+    { method: "processPurchaseOrder", tables: ["purchase_orders", "purchase_order_items", "inventory_items", "inventory_transactions", "suppliers"] },
+    { method: "processReturn", tables: ["orders", "sales_returns", "inventory_items", "inventory_transactions"] },
+    { method: "processPurchaseReturn", tables: ["purchase_orders", "purchase_returns", "inventory_items", "inventory_transactions", "suppliers"] },
+    { method: "updateOrderStatus", tables: ["orders", "tables_floor"] },
+    { method: "clearData", tables: ["*"] }
+  ];
+
+  customOverrides.forEach(({ method, tables }) => {
+    if (rawApi[method]) {
+      api[method] = async (...args) => {
+        const res = await rawApi[method](...args);
+        tables.forEach(t => notify(t));
+        return res;
+      };
+    }
+  });
+}
 
 export default api;

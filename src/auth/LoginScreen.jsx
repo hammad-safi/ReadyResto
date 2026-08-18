@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import {
   UtensilsCrossed, Eye, EyeOff, Delete, ChevronDown,
-  Lock, X, KeyRound, RefreshCw, Building2, ShieldAlert
+  Lock, X, KeyRound, RefreshCw, ShieldAlert
 } from "lucide-react";
 import { useAuth } from "./AuthContext";
 import api from "../api/client";
-
-const BRANCHES = ["Main Branch", "Downtown", "Airport Road"];
 
 /* ── Admin Override / Forgot PIN Modal ──────────────────────────────────── */
 function AdminOverrideModal({ onClose, users }) {
@@ -223,7 +221,6 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberDevice, setRememberDevice] = useState(false);
-  const [branch, setBranch] = useState(BRANCHES[0]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
@@ -341,21 +338,6 @@ export default function LoginScreen() {
               <p className="text-xs text-ink-500 mt-1 tracking-wide">Restaurant Management System</p>
             </div>
 
-            {/* Branch Selector (shown when multi-branch) */}
-            <div className="mb-5">
-              <label className="relative flex items-center gap-2 bg-canvas-50 border border-canvas-200 rounded-xl px-3.5 py-2.5 cursor-pointer hover:bg-canvas-100 transition-colors">
-                <Building2 size={15} className="text-ink-600 shrink-0" />
-                <select
-                  value={branch}
-                  onChange={(e) => setBranch(e.target.value)}
-                  className="flex-1 bg-transparent text-sm text-ink-900 outline-none appearance-none cursor-pointer"
-                >
-                  {BRANCHES.map((b) => <option key={b} value={b} className="text-ink-900">{b}</option>)}
-                </select>
-                <ChevronDown size={14} className="text-ink-500 shrink-0" />
-              </label>
-            </div>
-
             {/* Tab Toggle */}
             <div className="flex bg-canvas-100 rounded-xl p-1 mb-5 gap-1 border border-canvas-200">
               {[{ id: "pin", label: "PIN Login" }, { id: "password", label: "Password" }].map((t) => (
@@ -384,7 +366,7 @@ export default function LoginScreen() {
                       className={`h-3 w-3 rounded-full border transition-all duration-200 ${
                         i < pin.length
                           ? "bg-paprika-400 border-paprika-400 scale-110"
-                          : "border-canvas-200"
+                          : "bg-canvas-200 border-canvas-300 dark:bg-ink-700 dark:border-ink-600"
                       }`}
                     />
                   ))}
@@ -419,7 +401,7 @@ export default function LoginScreen() {
                 </button>
 
                 <p className="text-center text-[10px] text-ink-400 mt-4">
-                  Demo PINs: <span className="text-ink-500 font-medium">1234</span> Owner ·{" "}
+                  Demo PINs: <span className="text-ink-500 font-medium">123456</span> Owner ·{" "}
                   <span className="text-ink-500 font-medium">2345</span> Cashier ·{" "}
                   <span className="text-ink-500 font-medium">3456</span> Waiter ·{" "}
                   <span className="text-ink-500 font-medium">4567</span> Kitchen

@@ -47,7 +47,7 @@ export function RestaurantProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (profile?.theme) {
+    if (profile?.theme && !loading) {
       const html = document.documentElement;
       const current = [...html.classList].find(c => c.startsWith("theme-"));
       const wanted = `theme-${profile.theme}`;
@@ -57,7 +57,15 @@ export function RestaurantProvider({ children }) {
       }
       localStorage.setItem("theme-preference", profile.theme);
     }
-  }, [profile?.theme]);
+  }, [profile?.theme, loading]);
+
+  useEffect(() => {
+    if (!loading && window.api?.isElectron && window.api.setAppIcon) {
+      if (profile?.logo && profile.logo.startsWith("data:image/")) {
+        window.api.setAppIcon(profile.logo);
+      }
+    }
+  }, [profile?.logo, loading]);
 
   const updateProfile = async (newProfile) => {
     const updated = { ...profile, ...newProfile };

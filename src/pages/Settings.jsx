@@ -7,7 +7,9 @@ import api from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useRestaurant } from "../context/RestaurantContext";
 import { useDashboardFilters } from "../context/DashboardFilterContext";
+import { useDataCache } from "../context/DataCacheContext";
 import ModuleTable from "../components/ui/ModuleTable";
+import { useDialog } from "../context/DialogContext";
 
 const TABS = ["General", "Visual Themes", "Tax & Charges", "Hardware & Printing", "Alerts", "Data Management", "Session & Security"];
 
@@ -25,9 +27,11 @@ const PRESET_AVATARS = [
 ];
 
 export default function Settings() {
+  const { getData } = useDataCache();
   const { autoLockMinutes, setAutoLockMinutes } = useAuth();
   const { profile: globalProfile, updateProfile: saveGlobalProfile } = useRestaurant();
   const { filters: globalFilters } = useDashboardFilters();
+  const { alert, confirm, prompt } = useDialog();
   const [tab, setTab] = useState(TABS[0]);
   const [profile, setProfile] = useState(null);
   const [alertPreferences, setAlertPreferences] = useState(null);
@@ -66,6 +70,7 @@ export default function Settings() {
         currency: "PKR",
         taxRate: 0,
         serviceCharge: 0,
+        taxCalculationMethod: "after_discount",
         receiptFooter: "Thank you for dining with us — visit again!",
         showLogo: true,
         showOwnerInfo: true,
@@ -100,18 +105,24 @@ export default function Settings() {
       });
     }
 
-    api.list("audit_log", { orderBy: "id DESC" }).then((d) => {
+    getData("audit_log", { orderBy: "id DESC" }).then((d) => {
       setAuditRows(d);
       setAuditLoading(false);
       const mods = [...new Set(d.map((r) => r.module).filter(Boolean))].sort();
       setAuditModules(mods);
     });
-    api.list("users").then(setAuditUsers);
+    getData("users").then(setAuditUsers);
   }, [globalProfile]);
 
   const update = (key, value) => {
-    if (key === "theme") userPickedTheme.current = true;
-    setProfile(p => ({ ...p, [key]: value }));
+    if (key === "theme") {
+      userPickedTheme.current = true;
+      const updated = { ...profile, [key]: value };
+      setProfile(updated);
+      saveGlobalProfile(updated);
+    } else {
+      setProfile(p => ({ ...p, [key]: value }));
+    }
   };
   const updateAlertPref = (key, value) => setAlertPreferences(p => ({ ...p, [key]: value }));
 
@@ -195,35 +206,37 @@ export default function Settings() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const parsed = JSON.parse(event.target.result);
-        if (window.confirm("Warning: This will overwrite ALL current data with the backup. Are you sure?")) {
+        if (await confirm("Warning: This will overwrite ALL current data with the backup. Are you sure?")) {
           if (parsed.__version === 1) {
             if (parsed.store)    localStorage.setItem(STORE_KEY, JSON.stringify(parsed.store));
             if (parsed.settings) localStorage.setItem(SETTINGS_KEY, JSON.stringify(parsed.settings));
           } else {
             localStorage.setItem(STORE_KEY, JSON.stringify(parsed));
           }
-          alert("Backup restored successfully. The application will now reload.");
+          await alert("Backup restored successfully. The application will now reload.");
           window.location.reload();
         }
       } catch {
-        alert("Invalid backup file. Please upload a valid JSON backup.");
+        await alert("Invalid backup file. Please upload a valid JSON backup.");
       }
     };
     reader.readAsText(file);
     e.target.value = null;
   };
 
-  const handleClearData = () => {
-    if (window.confirm("CRITICAL WARNING: This will permanently delete ALL data including orders, inventory, and settings. This cannot be undone.")) {
-      const typed = window.prompt("Type DELETE to confirm:");
+  const handleClearData = async () => {
+    if (await confirm("CRITICAL WARNING: This will permanently delete ALL data including orders, inventory, and settings. This cannot be undone.", "Clear Data")) {
+      const typed = await prompt("Type DELETE to confirm:", "Confirm Deletion");
       if (typed === "DELETE") {
-        localStorage.removeItem(STORE_KEY);
-        localStorage.removeItem(SETTINGS_KEY);
-        alert("All data cleared. The application will now reload.");
-        window.location.reload();
+        api.clearData().then(async () => {
+          await alert("All data cleared. The application will now reload.");
+          window.location.reload();
+        }).catch(async (err) => {
+          await alert("Failed to clear data: " + (err.message || String(err)));
+        });
       }
     }
   };
@@ -286,7 +299,7 @@ export default function Settings() {
     { label: "Show Owner Info on Receipt", key: "showOwnerInfo" },
     { label: "Show Tax Breakdown", key: "showTaxBreakdown" },
     { label: "Show Cashier Name", key: "showCashierName" },
-    { label: "Show QR Code", key: "showQrCode" }
+    { label: "Show Barcode", key: "showQrCode" }
   ];
 
   const kitchenToggles = [
@@ -735,23 +748,56 @@ export default function Settings() {
               })}
             </div>
 
-            <div className="mt-6 flex justify-end gap-3 border-t border-canvas-200 pt-4">
+            {/* <div className="mt-6 flex justify-end gap-3 border-t border-canvas-200 pt-4">
               <Button variant="primary" onClick={save}>
                 {saved ? "Theme Saved ✓" : "Apply & Save Theme"}
               </Button>
-            </div>
+            </div> */}
           </div>
         )}
 
         {tab === "Tax & Charges" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-ink-600">Default Tax Rate (%)</label>
-              <input type="number" value={profile.taxRate || 0} onChange={(e) => update("taxRate", Number(e.target.value))} className="w-full mt-1 border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none" />
+              <label className="text-xs font-medium text-ink-600">Default Tax Rate (%) - 0 to 100</label>
+              <input 
+                type="number" 
+                min="0"
+                max="100"
+                value={profile.taxRate || 0} 
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  const bounded = Math.max(0, Math.min(100, val));
+                  update("taxRate", bounded);
+                }} 
+                className="w-full mt-1 border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-paprika-500/20" 
+              />
             </div>
             <div>
-              <label className="text-xs font-medium text-ink-600">Service Charge (%)</label>
-              <input type="number" value={profile.serviceCharge || 0} onChange={(e) => update("serviceCharge", Number(e.target.value))} className="w-full mt-1 border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none" />
+              <label className="text-xs font-medium text-ink-600">Service Charge (%) - 0 to 100</label>
+              <input 
+                type="number" 
+                min="0"
+                max="100"
+                value={profile.serviceCharge || 0} 
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  const bounded = Math.max(0, Math.min(100, val));
+                  update("serviceCharge", bounded);
+                }} 
+                className="w-full mt-1 border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-paprika-500/20" 
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-xs font-medium text-ink-600">Tax Calculation Base</label>
+              <select 
+                value={profile.taxCalculationMethod || "after_discount"} 
+                onChange={(e) => update("taxCalculationMethod", e.target.value)} 
+                className="w-full mt-1 border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none bg-canvas-50"
+              >
+                <option value="after_discount">Apply Tax After Discount (Subtotal - Discount)</option>
+                <option value="before_discount">Apply Tax On Full Amount Before Discount</option>
+              </select>
             </div>
             <div className="sm:col-span-2 mt-2">
               <Button variant="primary" onClick={save}>{saved ? "Saved ✓" : "Save Changes"}</Button>

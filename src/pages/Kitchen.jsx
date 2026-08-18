@@ -9,6 +9,7 @@ import Button from "../components/ui/Button";
 import { printKOT } from "../utils/export";
 
 import useStickyState from "../hooks/useStickyState";
+import { useDataCache } from "../context/DataCacheContext";
 
 const COLUMNS = [
   { key: "new",       label: "New Orders",    tone: "border-l-paprika-500",  badgeBg: "bg-paprika-600 text-white",  headerBg: "bg-paprika-500/10 border-paprika-500/20"  },
@@ -79,6 +80,7 @@ const playCancelChime = () => {
 };
 
 export default function Kitchen() {
+  const { getData } = useDataCache();
   const { user } = useAuth();
   const [orders,        setOrders]        = useState([]);
   const [items,         setItems]         = useState([]);
@@ -94,8 +96,8 @@ export default function Kitchen() {
   const load = async () => {
     try {
       const [fetchedOrders, fetchedItems] = await Promise.all([
-        api.list("orders"),
-        api.list("order_items"),
+        getData("orders"),
+        getData("order_items"),
       ]);
       
       const activeNew = fetchedOrders.filter((o) => o.kitchen_status === "new" && o.status !== "cancelled");
@@ -500,13 +502,15 @@ export default function Kitchen() {
                             >
                               {KITCHEN_LABELS[col.key]} <Check size={13} />
                             </button>
-                            <button
-                              onClick={() => setCancellingId(order.id)}
-                              className="px-3 py-2.5 rounded-lg bg-white border border-canvas-200 text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center tooltip-trigger"
-                              title="Cancel Ticket"
-                            >
-                              <X size={15} />
-                            </button>
+                            {order.kitchen_status === "new" && (
+                              <button
+                                onClick={() => setCancellingId(order.id)}
+                                className="px-3 py-2.5 rounded-lg bg-white border border-canvas-200 text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center tooltip-trigger"
+                                title="Cancel Ticket"
+                              >
+                                <X size={15} />
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>

@@ -72,6 +72,31 @@ export default function Printing() {
           </div>
         </div>
       </div>
+
+      {/* Hidden print area for test receipt */}
+      {printingId && (
+        <div id="receipt-print-area" className="absolute top-[-9999px] left-[-9999px] print:top-0 print:left-0 font-mono text-[12px] leading-relaxed text-black">
+          <div className="text-center mb-3">
+            <h2 className="font-bold text-sm">DASTARKHWAN ERP</h2>
+            <p className="text-[11px] italic mb-0.5">--- TEST PRINT ---</p>
+            <p className="text-[11px]">Printer: {printingId}</p>
+          </div>
+          <div className="border-t border-dashed border-black my-2" />
+          <div className="flex justify-between">
+            <span>Status:</span>
+            <span>Online</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Interface:</span>
+            <span>USB/Network Connection</span>
+          </div>
+          <div className="border-t border-dashed border-black my-2" />
+          <div className="text-center mt-3 text-[10px]">
+            <p>Print test succeeded!</p>
+            <p>{new Date().toLocaleString()}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, nativeImage } = require("electron");
 const path = require("path");
 const os = require("os");
+const fs = require("fs");
 const { openDatabase, ALLOWED_TABLES, MODULES, DEFAULT_PERMISSIONS, MODULE_OVERRIDES } = require("./db");
 
 let mainWindow;
@@ -9,10 +10,19 @@ let db;
 const isDev = !app.isPackaged;
 const DEVICE_NAME = os.hostname();
 
+const getLocalISODate = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 function createWindow() {
+  const { screen } = require("electron");
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    width: Math.round(width * 0.75),
+    height: Math.round(height * 0.75),
     minWidth: 1024,
     minHeight: 640,
     backgroundColor: "#F5F6F7",
@@ -55,7 +65,7 @@ function assertTable(table) {
 }
 
 function logAudit(user, module, action, device) {
-  const time = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const time = new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
   db.prepare("INSERT INTO audit_log (time, user, module, action, ip_device) VALUES (?, ?, ?, ?, ?)").run(
     time, user, module, action, device || DEVICE_NAME
   );
@@ -111,13 +121,13 @@ function checkAlerts(db) {
 
         if (diffDays <= 0) {
           const alertText = `Expired: Batch ${batch.batch_number || 'N/A'} of ${batch.name} expired on ${batch.expiry_date}.`;
-          const exists = db.prepare("SELECT id FROM notifications WHERE type = 'expiry' AND text = ? AND read = 0").get(alertText);
+          const exists = db.prepare("SELECT id FROM notifications WHERE type = 'expiry' AND text = ?").get(alertText);
           if (!exists) {
             db.prepare("INSERT INTO notifications (type, text, time, read) VALUES ('expiry', ?, ?, 0)").run(alertText, time);
           }
         } else if (diffDays <= 3) {
           const alertText = `Expiring Soon: Batch ${batch.batch_number || 'N/A'} of ${batch.name} will expire in ${diffDays} days (${batch.expiry_date}).`;
-          const exists = db.prepare("SELECT id FROM notifications WHERE type = 'expiry' AND text = ? AND read = 0").get(alertText);
+          const exists = db.prepare("SELECT id FROM notifications WHERE type = 'expiry' AND text = ?").get(alertText);
           if (!exists) {
             db.prepare("INSERT INTO notifications (type, text, time, read) VALUES ('expiry', ?, ?, 0)").run(alertText, time);
           }
@@ -145,6 +155,17 @@ function checkAlerts(db) {
 }
 
 function registerIpcHandlers() {
+  ipcMain.on("set-app-icon", (e, dataUrl) => {
+    try {
+      if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) return;
+      const image = nativeImage.createFromDataURL(dataUrl);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.setIcon(image);
+      }
+    } catch (err) {
+      console.error("Failed to set app icon:", err);
+    }
+  });
   // Generic CRUD ---------------------------------------------------------
   ipcMain.handle("db:list", (e, table, { orderBy, where } = {}) => {
     assertTable(table);
@@ -170,7 +191,10 @@ function registerIpcHandlers() {
     
     db.exec("BEGIN");
     try {
-      const cols = Object.keys(data);
+      const tableInfo = db.prepare(`PRAGMA table_info(${table})`).all();
+      const validCols = tableInfo.map(c => c.name);
+      const cols = Object.keys(data).filter(k => validCols.includes(k) && data[k] !== undefined);
+      
       const placeholders = cols.map(() => "?").join(",");
       const stmt = db.prepare(`INSERT INTO ${table} (${cols.join(",")}) VALUES (${placeholders})`);
       const result = stmt.run(...cols.map((c) => data[c]));
@@ -181,7 +205,7 @@ function registerIpcHandlers() {
       if (table === "expenses") {
         const expCode = data.expense_account_code || '5099';
         const payCode = data.payment_account_code || '1001';
-        const d = data.date || new Date().toISOString().split('T')[0];
+        const d = data.date || getLocalISODate();
         postJournal([
           { date: d, reference_type: 'Expense', reference_id: String(idCol), account_code: expCode, account_name: 'Expense', debit: Number(data.amount || 0), credit: 0, description: data.notes || '', created_by: meta.user || 'System' },
           { date: d, reference_type: 'Expense', reference_id: String(idCol), account_code: payCode, account_name: 'Payment', debit: 0, credit: Number(data.amount || 0), description: data.notes || '', created_by: meta.user || 'System' }
@@ -192,8 +216,13 @@ function registerIpcHandlers() {
         const isCash = (data.payment_method || '').toLowerCase().includes('cash');
         const bankOrCashCode = isCash ? '1001' : '1002';
         const bankOrCashName = isCash ? 'Cash in Drawer' : 'Bank Account (Main)';
-        const d = data.date || new Date().toISOString().split('T')[0];
+        const d = data.date || getLocalISODate();
         const amt = Number(data.amount || 0);
+        
+        // Update customer outstanding credit/debt and total paid
+        db.prepare("UPDATE customers SET credit = MAX(0, credit - ?), total_paid = total_paid + ? WHERE id = ?")
+          .run(amt, amt, data.customer_id);
+
         postJournal([
           { date: d, reference_type: 'Customer Payment', reference_id: String(idCol), account_code: bankOrCashCode, account_name: bankOrCashName, debit: amt, credit: 0, description: `Credit payment from ${data.customer_name || 'Customer'} (Ref #${idCol})`, created_by: meta.user || 'System' },
           { date: d, reference_type: 'Customer Payment', reference_id: String(idCol), account_code: '1003', account_name: 'Accounts Receivable', debit: 0, credit: amt, description: `Credit payment from ${data.customer_name || 'Customer'} (Ref #${idCol})`, created_by: meta.user || 'System' }
@@ -211,7 +240,12 @@ function registerIpcHandlers() {
 
   ipcMain.handle("db:update", (e, table, id, data, meta = {}) => {
     assertTable(table);
-    const cols = Object.keys(data);
+    const tableInfo = db.prepare(`PRAGMA table_info(${table})`).all();
+    const validCols = tableInfo.map(c => c.name);
+    const cols = Object.keys(data).filter(k => validCols.includes(k) && data[k] !== undefined && k !== "id");
+    
+    if (cols.length === 0) return db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
+    
     const setClause = cols.map((c) => `${c} = ?`).join(", ");
     db.prepare(`UPDATE ${table} SET ${setClause} WHERE id = ?`).run(...cols.map((c) => data[c]), id);
     if (meta.user) logAudit(meta.user, meta.module || table, meta.action || `Updated record ${id} in ${table}`, meta.device);
@@ -375,6 +409,11 @@ function registerIpcHandlers() {
     return { success: true };
   });
 
+  ipcMain.handle("notifications:markRead", (e, id) => {
+    db.prepare("UPDATE notifications SET read = 1 WHERE id = ?").run(id);
+    return { success: true };
+  });
+
   // Orders (with line items) --------------------------------------------------
   ipcMain.handle("orders:createWithItems", (e, order, items, meta = {}) => {
     const payload = {
@@ -385,29 +424,75 @@ function registerIpcHandlers() {
     };
     db.exec("BEGIN");
     try {
+      const existingOrder = db.prepare("SELECT * FROM orders WHERE id = ?").get(payload.id);
+      const wasPaid = existingOrder ? ['paid', 'completed', 'served'].includes(existingOrder.status) : false;
+      const isNowPaid = ['paid', 'completed', 'served'].includes(payload.status);
+
       db.prepare("DELETE FROM order_items WHERE order_id = ?").run(payload.id);
+      const queryPayload = {
+        id: payload.id ?? null,
+        type: payload.type ?? null,
+        table_id: payload.table_id ?? null,
+        customer: payload.customer ?? null,
+        customer_id: payload.customer_id ?? null,
+        items_count: payload.items_count ?? 0,
+        total: payload.total ?? 0,
+        status: payload.status ?? 'new',
+        waiter: payload.waiter ?? null,
+        time: payload.time ?? null,
+        subtotal: payload.subtotal ?? 0,
+        discount_percent: payload.discount_percent ?? 0,
+        discount_reason: payload.discount_reason ?? null,
+        tax: payload.tax ?? 0,
+        service_charge: payload.service_charge ?? 0,
+        payment_method: payload.payment_method ?? null,
+        payment_details: payload.payment_details ?? null,
+        tendered: payload.tendered ?? null,
+        change_due: payload.change_due ?? null,
+        refunded_total: payload.refunded_total ?? 0,
+        order_note: payload.order_note ?? null,
+        created_at: payload.created_at ?? null,
+        shift_id: payload.shift_id ?? null,
+        kitchen_status: payload.kitchen_status ?? 'new'
+      };
+
       db.prepare(
-        `INSERT INTO orders (id, type, table_id, customer, items_count, total, status, waiter, time,
+        `INSERT INTO orders (id, type, table_id, customer, customer_id, items_count, total, status, waiter, time,
            subtotal, discount_percent, discount_reason, tax, service_charge, payment_method,
-           payment_details, tendered, change_due, refunded_total, order_note, created_at)
-         VALUES (@id, @type, @table_id, @customer, @items_count, @total, @status, @waiter, @time,
+           payment_details, tendered, change_due, refunded_total, order_note, created_at, shift_id, kitchen_status)
+         VALUES (@id, @type, @table_id, @customer, @customer_id, @items_count, @total, @status, @waiter, @time,
            @subtotal, @discount_percent, @discount_reason, @tax, @service_charge, @payment_method,
-           @payment_details, @tendered, @change_due, @refunded_total, @order_note, @created_at)
+           @payment_details, @tendered, @change_due, @refunded_total, @order_note, @created_at, @shift_id, @kitchen_status)
          ON CONFLICT(id) DO UPDATE SET
-           type=excluded.type, table_id=excluded.table_id, customer=excluded.customer,
+           type=excluded.type, table_id=excluded.table_id, customer=excluded.customer, customer_id=excluded.customer_id,
            items_count=excluded.items_count, total=excluded.total, status=excluded.status,
            waiter=excluded.waiter, time=excluded.time, subtotal=excluded.subtotal,
            discount_percent=excluded.discount_percent, discount_reason=excluded.discount_reason,
            tax=excluded.tax, service_charge=excluded.service_charge, payment_method=excluded.payment_method,
            payment_details=excluded.payment_details, tendered=excluded.tendered, change_due=excluded.change_due,
-           order_note=excluded.order_note`
-      ).run(payload);
+           order_note=excluded.order_note, shift_id=excluded.shift_id, kitchen_status=excluded.kitchen_status`
+      ).run(queryPayload);
       const stmt = db.prepare(
         `INSERT INTO order_items (order_id, menu_item_id, name, qty, price, notes) VALUES (?, ?, ?, ?, ?, ?)`
       );
       for (const it of items) stmt.run(payload.id, it.menu_item_id, it.name, it.qty, it.price, it.notes || "");
       if (payload.table_id) {
         db.prepare("UPDATE tables_floor SET status = 'occupied', order_id = ? WHERE id = ?").run(payload.id, payload.table_id);
+      }
+
+      if (isNowPaid && !wasPaid && payload.customer_id) {
+        const actualPaid = (payload.tendered !== null ? Number(payload.tendered) : Number(payload.total)) - (Number(payload.change_due) || 0);
+        const billedAmount = Number(payload.total);
+        const creditIncrease = billedAmount - actualPaid;
+        db.prepare(
+          `UPDATE customers 
+           SET visits = visits + 1,
+               points = points + ?,
+               total_billed = total_billed + ?,
+               total_paid = total_paid + ?,
+               credit = credit + ?
+           WHERE id = ?`
+        ).run(Math.floor(billedAmount / 100), billedAmount, actualPaid, creditIncrease, payload.customer_id);
       }
 
       if (['paid', 'completed', 'served'].includes(payload.status)) {
@@ -421,7 +506,7 @@ function registerIpcHandlers() {
         const tendered = payload.tendered !== null ? Number(payload.tendered) : tot;
         
         let journalEntries = [];
-        const dateNow = new Date().toISOString().split('T')[0];
+        const dateNow = getLocalISODate();
         
         if (tot > tendered && tendered > 0) {
            journalEntries.push({ date: dateNow, reference_type: 'Order', reference_id: payload.id, account_code: bankOrCashCode, account_name: bankOrCashName, debit: tendered, credit: 0, description: `Partial payment for Order #${payload.id}`, created_by: meta.user });
@@ -478,7 +563,7 @@ function registerIpcHandlers() {
         }
       }
 
-      const dateNow = new Date().toISOString().split('T')[0];
+      const dateNow = getLocalISODate();
       postJournal([
         { date: dateNow, reference_type: 'Sales Return', reference_id: orderId, account_code: '4001', account_name: 'Food Sales Revenue', debit: amount, credit: 0, description: `Refund for Order #${orderId}`, created_by: meta.user || '' },
         { date: dateNow, reference_type: 'Sales Return', reference_id: orderId, account_code: '1001', account_name: 'Cash in Drawer', debit: 0, credit: amount, description: `Refund for Order #${orderId}`, created_by: meta.user || '' }
@@ -499,9 +584,33 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("orders:updateStatus", (e, id, status, meta = {}) => {
+    const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(id);
+    if (!order) throw new Error("Order not found");
+
+    if (status === "cancelled") {
+      if (order.kitchen_status && order.kitchen_status !== "new") {
+        throw new Error("Only new orders can be cancelled.");
+      }
+      if (order.status !== "cancelled") {
+        if (['paid', 'completed', 'served'].includes(order.status) && order.customer_id) {
+          const actualPaid = (order.tendered !== null ? Number(order.tendered) : Number(order.total)) - (Number(order.change_due) || 0);
+          const billedAmount = Number(order.total);
+          const creditIncrease = billedAmount - actualPaid;
+          db.prepare(
+            `UPDATE customers 
+             SET visits = MAX(0, visits - 1),
+                 points = MAX(0, points - ?),
+                 total_billed = MAX(0, total_billed - ?),
+                 total_paid = MAX(0, total_paid - ?),
+                 credit = MAX(0, credit - ?)
+             WHERE id = ?`
+          ).run(Math.floor(billedAmount / 100), billedAmount, actualPaid, creditIncrease, order.customer_id);
+        }
+      }
+    }
+
     db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, id);
     if (status === "cancelled" || status === "served") {
-      const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(id);
       if (order?.table_id) {
         db.prepare("UPDATE tables_floor SET status = 'cleaning', order_id = NULL WHERE id = ?").run(order.table_id);
       }
@@ -539,7 +648,7 @@ function registerIpcHandlers() {
            WHERE id = ?`
         ).run(
           poData.supplier,
-          poData.date || new Date().toISOString().split("T")[0],
+          poData.date || getLocalISODate(),
           Number(poData.total || 0),
           poData.status || "draft",
           wasAlreadyReceived || isNowReceiving ? 1 : 0,
@@ -561,7 +670,7 @@ function registerIpcHandlers() {
         );
         const result = stmt.run(
           poData.supplier,
-          poData.date || new Date().toISOString().split("T")[0],
+          poData.date || getLocalISODate(),
           Number(poData.total || 0),
           poData.status || "draft",
           isNowReceiving ? 1 : 0,
@@ -624,7 +733,7 @@ function registerIpcHandlers() {
               inv.warehouse || "Main Kitchen Store",
               invoiceNum || "",
               `PO-${finalPoId}`,
-              poData.date || new Date().toISOString().split("T")[0],
+              poData.date || getLocalISODate(),
               "Purchase Receipt",
               `Received PO #${finalPoId} from ${poData.supplier || "Unknown"}. Invoice: ${invoiceNum || "-"}`,
               meta.user || "System"
@@ -656,7 +765,7 @@ function registerIpcHandlers() {
           meta.device || DEVICE_NAME
         );
         
-        const dateNow = new Date().toISOString().split('T')[0];
+        const dateNow = getLocalISODate();
         const tot = Number(poData.total || 0);
         const paid = Number(poData.amount_paid_on_receive || 0);
         const isCash = (poData.payment_method_on_receive || '').toLowerCase().includes('cash');
@@ -704,12 +813,14 @@ function registerIpcHandlers() {
 
         // Deduct returned qty from inventory stock
         const inv = db.prepare("SELECT * FROM inventory_items WHERE id = ?").get(ret.inventory_item_id);
-        if (inv) {
-          const newStock = Math.max(0, Number(inv.stock || 0) - returnQty);
-          const newStatus = newStock <= 0 ? "critical" : newStock <= (inv.reorder || 10) ? "low" : "in_stock";
-          db.prepare(
-            `UPDATE inventory_items SET stock = ?, status = ?, updated_at = ? WHERE id = ?`
-          ).run(newStock, newStatus, new Date().toISOString(), ret.inventory_item_id);
+        if (!inv || (inv.stock || 0) < returnQty) {
+          throw new Error(`Cannot return product. Available stock for "${ret.name}" is ${inv ? inv.stock : 0}, which is less than the return quantity.`);
+        }
+        const newStock = Math.max(0, Number(inv.stock || 0) - returnQty);
+        const newStatus = newStock <= 0 ? "critical" : newStock <= (inv.reorder || 10) ? "low" : "in_stock";
+        db.prepare(
+          `UPDATE inventory_items SET stock = ?, status = ?, updated_at = ? WHERE id = ?`
+        ).run(newStock, newStatus, new Date().toISOString(), ret.inventory_item_id);
 
           // Log return transaction
           db.prepare(
@@ -724,13 +835,11 @@ function registerIpcHandlers() {
             inv.warehouse || "Main Kitchen Store",
             "",
             `RET-PO-${poId}`,
-            new Date().toISOString().split("T")[0],
+            getLocalISODate(),
             "Purchase Return",
             `Purchase Return for PO #${poId}. Reason: ${reason || "Supplier Return"}`,
             meta.user || "System"
           );
-        }
-
         // Update purchase_order_items returned_qty
         db.prepare(
           `UPDATE purchase_order_items 
@@ -790,7 +899,7 @@ function registerIpcHandlers() {
         const isCash = refundMode === "Cash Refund";
         const bankOrCashCode = isCash ? '1001' : '2001';
         const bankOrCashName = isCash ? 'Cash in Drawer' : 'Accounts Payable';
-        const dateNow = new Date().toISOString().split('T')[0];
+        const dateNow = getLocalISODate();
         postJournal([
           { date: dateNow, reference_type: 'Purchase Return', reference_id: String(poId), account_code: bankOrCashCode, account_name: bankOrCashName, debit: totalReturnAmount, credit: 0, description: `Return for PO #${poId} (${reason || 'Supplier Return'})`, created_by: meta.user || '' },
           { date: dateNow, reference_type: 'Purchase Return', reference_id: String(poId), account_code: '5001', account_name: 'Cost of Goods Sold', debit: 0, credit: totalReturnAmount, description: `Return for PO #${poId} (${reason || 'Supplier Return'})`, created_by: meta.user || '' }
@@ -840,7 +949,7 @@ function registerIpcHandlers() {
               inv.warehouse || "Main Kitchen Store",
               "",
               `DEL-PO-${poId}`,
-              new Date().toISOString().split("T")[0],
+              getLocalISODate(),
               "PO Deleted Reversal",
               `Purchase Order PO #${poId} was DELETED. Stock reversed.`,
               meta.user || "System"
@@ -905,7 +1014,7 @@ function registerIpcHandlers() {
         amount,
         data.payment_method || "Cash",
         data.notes || "",
-        data.date || new Date().toISOString().split("T")[0],
+        data.date || getLocalISODate(),
         new Date().toISOString()
       );
 
@@ -921,7 +1030,7 @@ function registerIpcHandlers() {
         meta.device || DEVICE_NAME
       );
 
-      const dateNow = data.date || new Date().toISOString().split('T')[0];
+      const dateNow = data.date || getLocalISODate();
       const isCash = (data.payment_method || '').toLowerCase().includes('cash');
       const bankOrCashCode = isCash ? '1001' : '1002';
       const bankOrCashName = isCash ? 'Cash in Drawer' : 'Bank Account (Main)';
@@ -955,13 +1064,38 @@ function registerIpcHandlers() {
   ipcMain.handle("app:getVersion", () => app.getVersion());
   ipcMain.handle("app:getDeviceName", () => DEVICE_NAME);
   ipcMain.handle("system:getPrinters", async (e) => await e.sender.getPrintersAsync());
+  ipcMain.handle("system:clearData", () => {
+    try {
+      db.exec("BEGIN TRANSACTION");
+      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all();
+      for (const t of tables) {
+        db.prepare(`DELETE FROM ${t.name}`).run();
+      }
+      db.exec("COMMIT");
+      db.exec("VACUUM"); // Reclaim space
+      
+      // Re-seed default admin user so login doesn't break
+      db.prepare("INSERT INTO users (name, role, pin, password) VALUES (?, ?, ?, ?)").run("Admin", "Admin", "1234", "admin123");
+      
+      // Permissions and roles will be dynamically re-seeded by openDatabase() on next app boot,
+      // but let's quickly cycle the db handle to ensure everything is initialized immediately
+      db.close();
+      const userDataPath = app.getPath("userData");
+      db = openDatabase(userDataPath);
+    } catch (err) {
+      console.error("Failed to clear data:", err);
+      try { db.exec("ROLLBACK"); } catch (e) {}
+      throw err;
+    }
+    return { success: true };
+  });
 
   // Inventory Custom Actions
   ipcMain.handle("inventory:addTransaction", (e, tx) => {
     db.exec("BEGIN");
     try {
       const item = db.prepare("SELECT * FROM inventory_items WHERE id = ?").get(tx.ingredient_id);
-      let finalTx = { ...tx, date: tx.date || new Date().toISOString().split("T")[0] };
+      let finalTx = { ...tx, date: tx.date || getLocalISODate() };
       if (item) {
         const adjustQty = Number(tx.qty);
         let newStock = Number(item.stock || 0);
@@ -1001,7 +1135,7 @@ function registerIpcHandlers() {
         `INSERT INTO physical_counts (date, status, approved_by, notes, items) VALUES (?, ?, ?, ?, ?)`
       );
       const result = stmt.run(
-        count.date || new Date().toISOString().split("T")[0],
+        count.date || getLocalISODate(),
         count.status || "draft",
         count.approved_by || "Manager",
         count.notes || "",
@@ -1033,7 +1167,7 @@ function registerIpcHandlers() {
                 it.warehouse || "Main Kitchen Store",
                 "",
                 `AUDIT-${countId}`,
-                count.date || new Date().toISOString().split("T")[0],
+                count.date || getLocalISODate(),
                 it.reason || "Physical Audit Adjustment",
                 `Counted: ${it.counted_qty} (System: ${oldStock}). Notes: ${it.notes || ""}`,
                 count.approved_by
@@ -1073,7 +1207,7 @@ function registerIpcHandlers() {
       batch.name,
       batch.batch_number || "",
       batch.supplier || "",
-      batch.purchase_date || new Date().toISOString().split("T")[0],
+      batch.purchase_date || getLocalISODate(),
       batch.expiry_date,
       Number(batch.qty || 0),
       batch.unit || "kg",
@@ -1171,7 +1305,7 @@ function registerIpcHandlers() {
     const { from_account, to_account, amount, description } = data;
     db.exec("BEGIN");
     try {
-      const d = new Date().toISOString().split('T')[0];
+      const d = getLocalISODate();
       postJournal([
         { date: d, reference_type: 'Transfer', reference_id: '', account_code: to_account, account_name: 'Bank Account', debit: Number(amount), credit: 0, description: description || 'Bank Transfer', created_by: 'System' },
         { date: d, reference_type: 'Transfer', reference_id: '', account_code: from_account, account_name: 'Bank Account', debit: 0, credit: Number(amount), description: description || 'Bank Transfer', created_by: 'System' }
@@ -1190,11 +1324,11 @@ function registerIpcHandlers() {
     db.exec("BEGIN");
     try {
       db.prepare("INSERT INTO customer_payments (customer_id, customer_name, amount, payment_method, bank_account_id, notes, date) VALUES (?,?,?,?,?,?,?)")
-        .run(customer_id, customer_name, Number(amount), payment_method, bank_account_id || null, notes || '', payDate || new Date().toISOString().split('T')[0]);
+        .run(customer_id, customer_name, Number(amount), payment_method, bank_account_id || null, notes || '', payDate || getLocalISODate());
       db.prepare("UPDATE customers SET credit = MAX(0, credit - ?), total_paid = total_paid + ? WHERE id = ?")
         .run(Number(amount), Number(amount), customer_id);
       
-      const d = payDate || new Date().toISOString().split('T')[0];
+      const d = payDate || getLocalISODate();
       const creditAccount = (payment_method || '').toLowerCase().includes('cash') ? '1001' : '1002';
       const creditName = creditAccount === '1001' ? 'Cash in Drawer' : 'Bank Account';
       const journalIns = db.prepare("INSERT INTO journal_entries (date, reference_type, reference_id, account_code, account_name, debit, credit, description, created_by) VALUES (?,?,?,?,?,?,?,?,?)");
@@ -1248,7 +1382,7 @@ function registerIpcHandlers() {
       .run(expectedCash, Number(actual_cash || 0), variance, cashSales, cardSales, onlineSales, totalSales, cashExpenses, cashSupplierPay, notes || '', shiftId);
     
     if (Math.abs(variance) > 0.01) {
-      const d = new Date().toISOString().split('T')[0];
+      const d = getLocalISODate();
       const journalIns = db.prepare("INSERT INTO journal_entries (date, reference_type, reference_id, account_code, account_name, debit, credit, description, created_by) VALUES (?,?,?,?,?,?,?,?,?)");
       if (variance < 0) {
         journalIns.run(d, 'shift_close', String(shiftId), '5099', 'Miscellaneous', Math.abs(variance), 0, 'Cash shortage on shift close', shift.cashier_name);

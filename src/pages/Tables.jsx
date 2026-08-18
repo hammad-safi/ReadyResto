@@ -6,6 +6,7 @@ import Button from "../components/ui/Button";
 import Modal from "../components/ui/Modal";
 import api from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useDataCache } from "../context/DataCacheContext";
 
 const STATUS_STYLES = {
   available: "bg-basil-500/5 border-basil-500/30 hover:border-basil-500 text-basil-700 hover:bg-basil-500/10",
@@ -19,6 +20,7 @@ function nextOrderId() {
 }
 
 export default function Tables() {
+  const { getData } = useDataCache();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [tables, setTables] = useState([]);
@@ -38,8 +40,8 @@ export default function Tables() {
 
   const load = async () => {
     try {
-      const tbls = await api.list("tables_floor");
-      const ords = await api.list("orders");
+      const tbls = await getData("tables_floor");
+      const ords = await getData("orders");
       setTables(tbls);
       setOrders(ords);
     } catch (err) {

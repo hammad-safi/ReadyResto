@@ -8,11 +8,13 @@ import {
 } from "lucide-react";
 import api from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useDataCache } from "../context/DataCacheContext";
 import PageHeader from "../components/ui/PageHeader";
 import Button from "../components/ui/Button";
 import Modal from "../components/ui/Modal";
 import ModuleTable from "../components/ui/ModuleTable";
 import Badge from "../components/ui/Badge";
+import DatePicker from "../components/ui/DatePicker";
 
 const fmt = (n) => `Rs. ${Math.max(0, Math.round(Number(n) || 0)).toLocaleString()}`;
 
@@ -299,9 +301,10 @@ function CustomerFormModal({ open, editing, onClose, onSaved }) {
     return e;
   };
 
-  const handleSave = async () => {
-    const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
+  const handleSave = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const err = validate();
+    if (Object.keys(err).length) { setErrors(err); return; }
     setSaving(true);
     try {
       const payload = {
@@ -344,6 +347,7 @@ function CustomerFormModal({ open, editing, onClose, onSaved }) {
    <Modal
   open={open}
   onClose={onClose}
+  onSubmit={handleSave}
   title={editing ? "Edit Customer" : "Add New Customer"}
   width="max-w-lg"
   footer={
@@ -393,7 +397,7 @@ function CustomerPaymentModal({ open, customer, onClose, onSaved }) {
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [notes, setNotes] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -402,7 +406,7 @@ function CustomerPaymentModal({ open, customer, onClose, onSaved }) {
       setAmount("");
       setPaymentMethod("Cash");
       setNotes("");
-      setDate(new Date().toISOString().split("T")[0]);
+      setDate(new Date().toLocaleDateString('en-CA'));
       setError("");
     }
   }, [open, customer]);
@@ -428,12 +432,8 @@ function CustomerPaymentModal({ open, customer, onClose, onSaved }) {
         date: date,
       }, { user: user?.name, module: "Customer", action: `Recorded payment for ${customer.name}` });
 
-      // 2. Update customer balance
-      // Wait, there is no direct endpoint shown for custom updates, but api.update does it
-      await api.update("customers", customer.id, {
-        credit: Number(customer.credit || 0) - Number(amount),
-        total_paid: Number(customer.total_paid || 0) + Number(amount)
-      }, { user: user?.name, module: "Customer", action: `Updated customer balance for ${customer.name}` });
+      // Note: credit and total_paid are updated automatically by the
+      // api.create("customer_payments") handler in client.js — no need to update here.
 
       onSaved();
     } catch (e) {
@@ -489,10 +489,9 @@ function CustomerPaymentModal({ open, customer, onClose, onSaved }) {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-bold text-ink-800 mb-1">Date</label>
-            <input
-              type="date"
+            <DatePicker  
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) = /> setDate(e.target.value)}
               className="w-full border border-canvas-200 rounded-xl px-4 py-2.5 text-sm bg-canvas-50 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
             />
           </div>
@@ -528,6 +527,7 @@ function CustomerPaymentModal({ open, customer, onClose, onSaved }) {
 
 // ─── Main Customers Page ──────────────────────────────────────────────────────
 export default function Customers() {
+  const { getData } = useDataCache();
   const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -553,7 +553,7 @@ export default function Customers() {
 
   const load = () => {
     setLoading(true);
-    api.list("customers").then(data => { setRows(data); setLoading(false); });
+    getData("customers").then(data => { setRows(data); setLoading(false); });
   };
 
   useEffect(() => { load(); }, []);
@@ -773,7 +773,7 @@ export default function Customers() {
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500 mb-1">From Date</p>
               <div className="relative">
                 <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                <DatePicker   value={dateFrom} onChange={(e) = /> setDateFrom(e.target.value)}
                   className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
               </div>
             </div>

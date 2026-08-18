@@ -7,12 +7,13 @@ import {
 } from "lucide-react";
 import api from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useDataCache } from "../context/DataCacheContext";
 import PageHeader from "../components/ui/PageHeader";
 import Modal from "../components/ui/Modal";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import ModuleTable from "../components/ui/ModuleTable";
-const BRANCHES = ["Main Branch", "Downtown", "Airport Road"];
+
 const ACTIONS = ["can_view", "can_add", "can_edit", "can_delete", "can_export"];
 const ACTION_LABELS = { can_view: "View", can_add: "Add", can_edit: "Edit", can_delete: "Delete", can_export: "Export" };
 
@@ -73,13 +74,13 @@ function RoleBadge({ role }) {
 function UserModal({ open, onClose, onSave, editing, allRoles }) {
   const [form, setForm] = useState({
     name: "", role: "Cashier", pin: "", password: "",
-    email: "", phone: "", branch: "Main Branch", status: "active", profile_photo: null,
+    email: "", phone: "", status: "active", profile_photo: null,
   });
   const fileRef = useRef(null);
 
   useEffect(() => {
     if (editing) setForm({ ...editing });
-    else setForm({ name: "", role: "Cashier", pin: "", password: "", email: "", phone: "", branch: "Main Branch", status: "active", profile_photo: null });
+    else setForm({ name: "", role: "Cashier", pin: "", password: "", email: "", phone: "", status: "active", profile_photo: null });
   }, [editing, open]);
 
   const upd = (k, v) => setForm((p) => ({ ...p, [k]: v }));
@@ -153,15 +154,6 @@ function UserModal({ open, onClose, onSave, editing, allRoles }) {
           <select value={form.role} onChange={(e) => upd("role", e.target.value)}
             className="w-full mt-1 border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-paprika-500/30">
             {allRoles.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
-
-        {/* Branch */}
-        <div>
-          <label className="text-xs font-medium text-ink-600">Assigned Branch</label>
-          <select value={form.branch} onChange={(e) => upd("branch", e.target.value)}
-            className="w-full mt-1 border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-paprika-500/30">
-            {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
           </select>
         </div>
 
@@ -297,6 +289,7 @@ function ResetPinModal({ open, onClose, targetUser }) {
 
 /* ── Users Sub-Tab ───────────────────────────────────────────────────────── */
 function UsersTab({ allRoles }) {
+  const { getData } = useDataCache();
   const { user: currentUser, canDo } = useAuth();
   const canAdd = canDo("Users & Roles", "add");
   const canEdit = canDo("Users & Roles", "edit");
@@ -314,7 +307,7 @@ function UsersTab({ allRoles }) {
 
   const load = () => {
     setLoading(true);
-    api.list("users").then((d) => { setRows(d); setLoading(false); });
+    getData("users").then((d) => { setRows(d); setLoading(false); });
   };
   useEffect(load, []);
 
@@ -427,7 +420,7 @@ function UsersTab({ allRoles }) {
                 <th className="px-4 py-3 text-left font-semibold text-xs text-ink-500 uppercase tracking-wider">User</th>
                 <th className="px-4 py-3 text-left font-semibold text-xs text-ink-500 uppercase tracking-wider">Role</th>
                 <th className="px-4 py-3 text-left font-semibold text-xs text-ink-500 uppercase tracking-wider">PIN</th>
-                <th className="px-4 py-3 text-left font-semibold text-xs text-ink-500 uppercase tracking-wider">Branch</th>
+
                 <th className="px-4 py-3 text-left font-semibold text-xs text-ink-500 uppercase tracking-wider">Last Login</th>
                 <th className="px-4 py-3 text-left font-semibold text-xs text-ink-500 uppercase tracking-wider">Status</th>
                 <th className="px-4 py-3 text-left font-semibold text-xs text-ink-500 uppercase tracking-wider">Actions</th>
@@ -464,7 +457,7 @@ function UsersTab({ allRoles }) {
                       <span className="text-[11px] text-ink-400 italic">Not set</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-xs text-ink-600">{row.branch || "—"}</td>
+
                   <td className="px-4 py-3 text-xs text-ink-500">{row.last_login || "Never"}</td>
                   <td className="px-4 py-3">
                     <button onClick={() => toggleStatus(row)} className="group" disabled={!canEdit}>
@@ -522,8 +515,8 @@ function UsersTab({ allRoles }) {
 }
 
 /* ── Permissions Sub-Tab ─────────────────────────────────────────────────── */
-function PermissionsTab() {
-  const { user: currentUser } = useAuth();
+function PermissionsTab({ onRolesChange }) {
+  const { user: currentUser, refreshPermissions } = useAuth();
   const [matrix, setMatrix] = useState({}); // { [role]: { [module]: { can_view, can_add, ... } } }
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -573,6 +566,9 @@ function PermissionsTab() {
       }
     }
     await api.savePermissions(rows, { user: currentUser.name });
+    if (refreshPermissions) {
+      await refreshPermissions();
+    }
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -580,6 +576,9 @@ function PermissionsTab() {
 
   const resetDefaults = async () => {
     await api.resetDefaultPermissions({ user: currentUser.name });
+    if (refreshPermissions) {
+      await refreshPermissions();
+    }
     loadAll();
   };
 
@@ -587,15 +586,23 @@ function PermissionsTab() {
     if (!newRoleName.trim()) return;
     setCreatingRole(true);
     await api.createRole(newRoleName.trim(), { user: currentUser.name });
+    if (refreshPermissions) {
+      await refreshPermissions();
+    }
     setNewRoleName("");
     setShowNewRole(false);
     setCreatingRole(false);
-    loadAll();
+    await loadAll();
+    if (onRolesChange) onRolesChange();
   };
 
   const deleteRole = async (name) => {
     await api.deleteRole(name, { user: currentUser.name });
-    loadAll();
+    if (refreshPermissions) {
+      await refreshPermissions();
+    }
+    await loadAll();
+    if (onRolesChange) onRolesChange();
   };
 
   if (loading) return <div className="py-10 text-center text-sm text-ink-400">Loading permissions…</div>;
@@ -715,6 +722,7 @@ function PermissionsTab() {
 
 /* ── Activity Log Sub-Tab ────────────────────────────────────────────────── */
 function ActivityTab() {
+  const { getData } = useDataCache();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -725,13 +733,13 @@ function ActivityTab() {
   const [modules, setModules] = useState([]);
 
   useEffect(() => {
-    api.list("audit_log", { orderBy: "id DESC" }).then((d) => {
+    getData("audit_log", { orderBy: "id DESC" }).then((d) => {
       setRows(d || []);
       setLoading(false);
       const mods = Array.from(new Set((d || []).map((x) => x.module).filter(Boolean)));
       setModules(mods);
     });
-    api.list("users").then(setUsers);
+    getData("users").then(setUsers);
   }, []);
 
   const auditColumns = [
@@ -795,6 +803,8 @@ function ActivityTab() {
         searchPlaceholder="Search actions, modules, users, devices..."
         searchValue={search}
         onSearchChange={setSearch}
+        defaultSortKey="id"
+        defaultSortDir="desc"
         actions={
           <Button variant="secondary" size="sm" onClick={exportCSV} className="flex items-center gap-1.5">
             <Download size={14} /> Export Log
@@ -855,12 +865,16 @@ export default function Users() {
   const [tab, setTab] = useState("users");
   const [allRoles, setAllRoles] = useState(["Owner", "Manager", "Cashier", "Waiter", "Kitchen Staff", "Accountant"]);
 
-  useEffect(() => {
+  const fetchRoles = () => {
     api.listRoles().then((r) => setAllRoles(r.map((x) => x.name))).catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchRoles();
   }, []);
 
   const descriptions = {
-    users: "Manage staff accounts, roles, PINs, and branch assignments.",
+    users: "Manage staff accounts, roles, and PINs.",
     permissions: "Control what each role can view, create, edit, delete, or export across every module.",
     activity: "Full audit trail of every login, edit, deletion, and action taken in the system.",
   };
@@ -892,7 +906,7 @@ export default function Users() {
       </div>
 
       {tab === "users" && <UsersTab allRoles={allRoles} />}
-      {tab === "permissions" && <PermissionsTab />}
+      {tab === "permissions" && <PermissionsTab onRolesChange={fetchRoles} />}
       {tab === "activity" && <ActivityTab />}
     </div>
   );

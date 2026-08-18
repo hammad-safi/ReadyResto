@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("api", {
   isElectron: true,
+  setAppIcon: (dataUrl) => ipcRenderer.send("set-app-icon", dataUrl),
 
   // Generic CRUD
   list: (table, opts) => ipcRenderer.invoke("db:list", table, opts),
@@ -31,10 +32,12 @@ contextBridge.exposeInMainWorld("api", {
   getSetting: (key) => ipcRenderer.invoke("settings:get", key),
   setSetting: (key, value) => ipcRenderer.invoke("settings:set", key, value),
   markAllNotificationsRead: () => ipcRenderer.invoke("notifications:markAllRead"),
+  markNotificationRead: (id) => ipcRenderer.invoke("notifications:markRead", id),
   clearNotifications: () => ipcRenderer.invoke("notifications:clear"),
 
   // Orders
   createOrderWithItems: (order, items, meta) => ipcRenderer.invoke("orders:createWithItems", order, items, meta),
+  updateOrderWithItems: (orderId, orderUpdates, items, meta) => ipcRenderer.invoke("orders:createWithItems", { ...orderUpdates, id: orderId }, items, meta),
   updateOrderStatus: (id, status, meta) => ipcRenderer.invoke("orders:updateStatus", id, status, meta),
 
   // Purchases & Payments
@@ -84,4 +87,5 @@ contextBridge.exposeInMainWorld("api", {
   getVersion: () => ipcRenderer.invoke("app:getVersion"),
   getDeviceName: () => ipcRenderer.invoke("app:getDeviceName"),
   getPrinters: () => ipcRenderer.invoke("system:getPrinters"),
+  clearData: () => ipcRenderer.invoke("system:clearData"),
 });

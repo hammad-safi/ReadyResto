@@ -321,10 +321,13 @@ export default function ModuleTable({
   activeFilterCount = 0,
   onClearFilters,
   defaultPageSize = 25,
-  maxHeight = "65vh"
+  maxHeight = "65vh",
+  defaultSortKey = "",
+  defaultSortDir = "asc",
+  virtualize = false
 }) {
-  const [sortKey, setSortKey] = useState("");
-  const [sortDir, setSortDir] = useState("asc");
+  const [sortKey, setSortKey] = useState(defaultSortKey);
+  const [sortDir, setSortDir] = useState(defaultSortDir);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -333,6 +336,9 @@ export default function ModuleTable({
   const searchInputRef = useRef(null);
   const columnsRef = useRef(null);
   const filtersRef = useRef(null);
+  const tableContainerRef = useRef(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(600);
 
   // Initialize visible columns
   const [visibleCols, setVisibleCols] = useState(() => {
@@ -407,6 +413,35 @@ export default function ModuleTable({
   const totalPages = Math.ceil(sortedData.length / pageSize) || 1;
   const paginatedData = sortedData.slice((page - 1) * pageSize, page * pageSize);
 
+  // Virtualization
+  const shouldVirtualize = virtualize && paginatedData.length > 100;
+  const rowHeight = 44;
+  const buffer = 5;
+
+  useEffect(() => {
+    if (shouldVirtualize && tableContainerRef.current) {
+      setContainerHeight(tableContainerRef.current.clientHeight || 600);
+    }
+  }, [shouldVirtualize, paginatedData.length]);
+
+  let visibleData = paginatedData;
+  let paddingTop = 0;
+  let paddingBottom = 0;
+
+  if (shouldVirtualize) {
+    const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
+    const endIndex = Math.min(paginatedData.length, Math.floor((scrollTop + containerHeight) / rowHeight) + buffer);
+    visibleData = paginatedData.slice(startIndex, endIndex);
+    paddingTop = startIndex * rowHeight;
+    paddingBottom = (paginatedData.length - endIndex) * rowHeight;
+  }
+
+  const handleScroll = (e) => {
+    if (shouldVirtualize) {
+      setScrollTop(e.target.scrollTop);
+    }
+  };
+
   const visibleColumnsList = columns.filter((c) => c.alwaysVisible || visibleCols[c.key]);
 
   return (
@@ -432,42 +467,54 @@ export default function ModuleTable({
         }
       `}</style>
 
-      {/* ── SEARCH & ACTIONS ── */}
-      <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
-        {onSearchChange !== undefined && (
-          <div className="relative w-full sm:max-w-md">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
-            <input
-              ref={searchInputRef}
-              value={searchValue}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder={searchPlaceholder}
-              className="w-full text-sm border border-canvas-200 bg-white rounded-lg pl-8 pr-3 py-2 outline-none focus:ring-2 focus:ring-paprika-500/30 transition-all"
-            />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none opacity-50 hidden sm:flex">
-              <kbd className="font-sans text-[10px] font-bold border border-canvas-200 rounded px-1">Ctrl</kbd>
-              <kbd className="font-sans text-[10px] font-bold border border-canvas-200 rounded px-1">F</kbd>
+      {/* ── UNIFIED TOOLBAR ── */}
+      <div className="flex flex-col lg:flex-row gap-3 justify-between items-start lg:items-center bg-[rgb(var(--surface-card))] border border-canvas-200 rounded-xl px-2.5 py-2 shadow-sm">
+        
+        {/* Left Side: Search & Record Count */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+          {onSearchChange !== undefined && (
+            <div className="relative w-full sm:w-64 md:w-80">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+              <input
+                ref={searchInputRef}
+                value={searchValue}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder={searchPlaceholder}
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck="false"
+                name="module-search"
+                className="w-full text-sm border border-canvas-200 bg-white rounded-lg pl-8 pr-3 py-1.5 outline-none focus:ring-2 focus:ring-paprika-500/30 transition-all"
+              />
             </div>
+          )}
+          
+          <div className="flex items-center gap-2 self-start sm:self-auto h-full px-1">
+            <p className="text-[13px] text-ink-500 font-medium whitespace-nowrap">
+              <span className="font-bold text-ink-900">{data.length}</span> records
+            </p>
+            {filterContent && <div className="h-4 w-px bg-canvas-200 mx-1 hidden sm:block"></div>}
           </div>
-        )}
-        {actions && (
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            {actions}
-          </div>
-        )}
-      </div>
+        </div>
 
-      {/* ── TOOLBAR (Filters & Columns) ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[rgb(var(--surface-card))] border border-canvas-200 rounded-xl px-2.5 py-2 shadow-sm">
-        <div className="flex items-center gap-2">
+        {/* Right Side: Actions, Filters, Columns */}
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto lg:justify-end">
+          {actions && (
+            <div className="flex items-center gap-2 mr-1">
+              {actions}
+            </div>
+          )}
+
           {filterContent && (
             <div className="relative" ref={filtersRef}>
               <button
                 onClick={() => { setFiltersOpen(!filtersOpen); setColumnsOpen(false); }}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-medium border transition-colors ${
-                  filtersOpen || activeFilterCount > 0
-                    ? "bg-paprika-50 border-paprika-200 text-paprika-700"
-                    : "border-canvas-200 text-ink-600 hover:bg-canvas-50"
+                  filtersOpen
+                    ? "bg-canvas-100 border-canvas-300 text-ink-900"
+                    : activeFilterCount > 0
+                    ? "bg-paprika-50 border-paprika-300 text-paprika-700 hover:bg-paprika-100"
+                    : "border-canvas-200 text-ink-600 bg-[rgb(var(--surface-card))] hover:bg-canvas-50"
                 }`}
               >
                 <Filter size={14} className={activeFilterCount > 0 ? "text-paprika-500" : "text-ink-400"} />
@@ -480,7 +527,7 @@ export default function ModuleTable({
               </button>
 
               {filtersOpen && (
-                <div className="absolute left-0 top-full mt-1.5 w-[320px] sm:w-[400px] z-20 bg-[rgb(var(--surface-card))] border border-canvas-200 rounded-xl shadow-lg p-4">
+                <div className="absolute right-0 top-full mt-1.5 w-[300px] sm:w-[400px] z-20 bg-[rgb(var(--surface-card))] border border-canvas-200 rounded-xl shadow-lg p-4">
                   <div className="flex items-center justify-between mb-4 pb-2 border-b border-canvas-100">
                     <p className="text-sm font-semibold text-ink-900">Advanced Filters</p>
                     {activeFilterCount > 0 && onClearFilters && (
@@ -495,13 +542,6 @@ export default function ModuleTable({
             </div>
           )}
 
-          {filterContent && <div className="h-4 w-px bg-canvas-200 mx-1 hidden sm:block"></div>}
-          <p className="text-[13px] text-ink-500 font-medium">
-            <span className="font-bold text-ink-900">{data.length}</span> records
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
           <div className="relative" ref={columnsRef}>
             <button
               onClick={() => { setColumnsOpen(!columnsOpen); setFiltersOpen(false); }}
@@ -535,7 +575,12 @@ export default function ModuleTable({
 
       {/* ── DATA TABLE ── */}
       <div className="rounded-xl bg-white border border-canvas-200 shadow-sm overflow-hidden">
-        <div className="modtable-scroll overflow-auto" style={{ maxHeight }}>
+        <div 
+          className="modtable-scroll overflow-auto" 
+          style={{ maxHeight }}
+          ref={tableContainerRef}
+          onScroll={handleScroll}
+        >
           <table className="w-full text-sm text-left">
             <thead className="bg-canvas-50 border-b border-canvas-200 sticky top-0 z-10">
               <tr>
@@ -571,11 +616,15 @@ export default function ModuleTable({
                   </td>
                 </tr>
               )}
-              {paginatedData.map((row, idx) => (
+              {shouldVirtualize && paddingTop > 0 && (
+                <tr><td colSpan={visibleColumnsList.length} style={{ height: paddingTop }}></td></tr>
+              )}
+              {visibleData.map((row, idx) => (
                 <tr
                   key={row.id || idx}
                   onClick={() => onRowClick && onRowClick(row)}
                   className={`border-b border-canvas-100 last:border-0 ${onRowClick ? "hover:bg-canvas-50 cursor-pointer" : ""} transition-colors`}
+                  style={{ height: shouldVirtualize ? rowHeight : undefined }}
                 >
                   {visibleColumnsList.map((col) => (
                     <td key={col.key} className={`px-4 py-3 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""}`}>
@@ -584,6 +633,9 @@ export default function ModuleTable({
                   ))}
                 </tr>
               ))}
+              {shouldVirtualize && paddingBottom > 0 && (
+                <tr><td colSpan={visibleColumnsList.length} style={{ height: paddingBottom }}></td></tr>
+              )}
             </tbody>
           </table>
         </div>

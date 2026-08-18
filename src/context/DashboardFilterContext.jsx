@@ -3,7 +3,7 @@ import { createContext, useContext, useState } from "react";
 const DashboardFilterContext = createContext(null);
 
 export function DashboardFilterProvider({ children }) {
-  const [filters, setFilters] = useState({ range: "Today", branch: "All Branches" });
+  const [filters, setFilters] = useState({ range: "Today" });
 
   const updateFilters = (updates) => {
     setFilters((prev) => ({ ...prev, ...updates }));

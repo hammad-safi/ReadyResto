@@ -79,12 +79,12 @@ export default function LockScreen() {
       submitTimeoutRef.current = null;
     }
 
-    if (next.length === expectedPinLength) {
-      submitTimeoutRef.current = setTimeout(() => submit(next), 200);
+    if (next.length === expectedPinLength || next.length === 6) {
+      submitTimeoutRef.current = setTimeout(() => submit(next, true), 200);
     }
   };
 
-  const submit = async (p) => {
+  const submit = async (p, isAuto = false) => {
     const pinToTry = p ?? pin;
     if (pinToTry.length < 4) return;
     setLoading(true);
@@ -92,9 +92,16 @@ export default function LockScreen() {
     const res = await loginWithPin(pinToTry);
     setLoading(false);
     if (!res.success) {
-      setError(res.message || "Invalid PIN");
-      setPin("");
-      triggerShake();
+      if (isAuto && pinToTry.length < 6) {
+        setExpectedPinLength(6);
+      } else {
+        setError(res.message || "Invalid PIN");
+        setPin("");
+        triggerShake();
+      }
+    } else if (res.user && res.user.pin) {
+      // Update expected length for future locks in this session
+      setExpectedPinLength(res.user.pin.length);
     }
   };
 
@@ -130,10 +137,10 @@ export default function LockScreen() {
 
           {/* PIN dots */}
           <div className="flex justify-center gap-3 mb-4">
-            {Array.from({ length: 6 }).map((_, i) => (
+            {Array.from({ length: expectedPinLength }).map((_, i) => (
               <div key={i}
                 className={`h-3 w-3 rounded-full border transition-all duration-200 ${
-                  i < pin.length ? "bg-paprika-500 border-paprika-500 scale-110" : "bg-canvas-100 border-canvas-200"
+                  i < pin.length ? "bg-paprika-500 border-paprika-500 scale-110" : "bg-canvas-200 border-canvas-300 dark:bg-ink-700 dark:border-ink-600"
                 }`}
               />
             ))}

@@ -6,6 +6,7 @@ import {
   StickyNote, AlertCircle, RotateCcw, Loader2, Check, Zap,
 } from "lucide-react";
 import Badge from "../components/ui/Badge";
+import { useDialog } from "../context/DialogContext";
 import Button from "../components/ui/Button";
 import Modal from "../components/ui/Modal";
 import Receipt from "../components/pos/Receipt";
@@ -15,6 +16,7 @@ import CheckoutModal from "../components/pos/CheckoutModal";
 import { printKOT } from "../utils/export";
 import useStickyState from "../hooks/useStickyState";
 import { playWhatsAppSound } from "../utils/soundHelper";
+import { useDataCache } from "../context/DataCacheContext";
 
 const DISCOUNT_REASONS = ["Loyal customer", "Complaint resolution", "Staff meal", "Manager promotion", "Other"];
 const PAYMENT_METHODS = [
@@ -44,7 +46,9 @@ function nextOrderId() {
 }
 
 export default function POS() {
+  const { getData } = useDataCache();
   const { user } = useAuth();
+  const { alert, confirm } = useDialog();
   const [activeCategory, setActiveCategory] = useStickyState("All", "pos_activeCategory");
   const [searchParams] = useSearchParams();
   const searchParamVal = searchParams.get("search") || "";
@@ -106,19 +110,19 @@ export default function POS() {
   const [receiptData, setReceiptData] = useState(null); // { order, items }
 
   const refreshTables = useCallback(() => {
-    api.list("tables_floor").then((rows) => {
+    getData("tables_floor").then((rows) => {
       setAllTables(rows);
       setAvailableTables(rows.filter((t) => t.status === "available"));
     });
   }, []);
 
   const refreshHeld = useCallback(() => {
-    api.list("orders", { where: { status: "held" } }).then(setHeldOrders);
-  }, []);
+    getData("orders", { where: { status: "held" } }).then(setHeldOrders);
+  }, [getData]);
 
   useEffect(() => {
     setMenuLoading(true);
-    api.list("menu_items").then((rows) => {
+    getData("menu_items").then((rows) => {
       setMenuItems(rows);
       const uniqueCats = Array.from(new Set(rows.map(item => item.category).filter(Boolean)));
       setCategories(uniqueCats);
@@ -127,12 +131,12 @@ export default function POS() {
     refreshTables();
     refreshHeld();
     api.getSetting("restaurant_profile").then(setProfile);
-    api.list("customers").then(setCustomers);
-    api.list("employees", { where: { role: "Waiter" } }).then(setWaiters);
+    getData("customers").then(setCustomers);
+    getData("employees", { where: { role: "Waiter" } }).then(setWaiters);
     if (user?.id) {
       api.getCurrentShift(user.id).then(setCurrentShift);
     }
-  }, [refreshTables, refreshHeld, user?.id]);
+  }, [refreshTables, refreshHeld, user?.id, getData]);
 
   useEffect(() => {
     const resumeId = localStorage.getItem("active_pos_order_id");
@@ -198,9 +202,9 @@ export default function POS() {
     refreshTables();
   };
 
-  const clearOrder = () => {
+  const clearOrder = async () => {
     if (cart.length === 0) return;
-    if (window.confirm("Clear this order? Items in the cart will be removed.")) {
+    if (await confirm("Clear this order? Items in the cart will be removed.")) {
       resetOrder();
     }
   };
@@ -305,7 +309,7 @@ export default function POS() {
       resetOrder();
       refreshHeld();
     } catch (err) {
-      alert(err.message || "Failed to hold order");
+      await alert(err.message || "Failed to hold order");
     } finally {
       setPlacingAction(null);
     }
@@ -324,7 +328,7 @@ export default function POS() {
       resetOrder();
       refreshHeld();
     } catch (err) {
-      alert(err.message || "Failed to send KOT");
+      await alert(err.message || "Failed to send KOT");
     } finally {
       setPlacingAction(null);
     }
@@ -382,7 +386,7 @@ export default function POS() {
       resetOrder();
       refreshHeld();
     } catch (err) {
-      alert(err.message || "Failed to checkout order");
+      await alert(err.message || "Failed to checkout order");
     }
   };
 

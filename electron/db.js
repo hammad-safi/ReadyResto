@@ -372,9 +372,11 @@ function openDatabase(userDataPath) {
       type TEXT,
       table_id TEXT,
       customer TEXT,
+      customer_id INTEGER,
       items_count INTEGER DEFAULT 0,
       total REAL DEFAULT 0,
       status TEXT DEFAULT 'new',
+      kitchen_status TEXT DEFAULT 'new',
       waiter TEXT,
       time TEXT,
       subtotal REAL DEFAULT 0,
@@ -627,6 +629,8 @@ function migrate(db) {
 
   try { db.exec("ALTER TABLE menu_items ADD COLUMN tax_rate REAL DEFAULT 16"); } catch { /* exists */ }
   try { db.exec("ALTER TABLE orders ADD COLUMN shift_id INTEGER"); } catch { /* exists */ }
+  try { db.exec("ALTER TABLE orders ADD COLUMN customer_id INTEGER"); } catch { /* exists */ }
+  try { db.exec("ALTER TABLE orders ADD COLUMN kitchen_status TEXT DEFAULT 'new'"); } catch { /* exists */ }
   try { db.exec("ALTER TABLE expenses ADD COLUMN payment_account TEXT DEFAULT 'Cash in Drawer'"); } catch { /* exists */ }
   try { db.exec("ALTER TABLE supplier_payments ADD COLUMN bank_account_id INTEGER"); } catch { /* exists */ }
 
@@ -635,6 +639,16 @@ function migrate(db) {
   const count = db.prepare("SELECT COUNT(*) as c FROM role_permissions").get();
   if (count.c === 0) {
     seedPermissions(db);
+  } else {
+    try {
+      const cashierSettingsRow = db.prepare("SELECT can_view FROM role_permissions WHERE role = 'Cashier' AND module = 'Settings'").get();
+      if (cashierSettingsRow && cashierSettingsRow.can_view === 1) {
+        db.exec("DELETE FROM role_permissions WHERE role IN ('Owner','Manager','Cashier','Waiter','Kitchen Staff','Accountant')");
+        seedPermissions(db);
+      }
+    } catch (err) {
+      console.error("Migration of role_permissions failed:", err);
+    }
   }
 }
 
@@ -810,6 +824,7 @@ function seed(db) {
       currency: "PKR",
       taxRate: 5,
       serviceCharge: 10,
+      taxCalculationMethod: "after_discount",
       receiptFooter: "Thank you for dining with us — visit again!",
     })
   );

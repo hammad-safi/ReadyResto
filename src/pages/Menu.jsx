@@ -9,6 +9,7 @@ import Modal from "../components/ui/Modal";
 import BarcodePrintModal from "../components/ui/BarcodePrintModal";
 import api from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useDataCache } from "../context/DataCacheContext";
 
 const CATEGORY_OPTIONS = ["Fast Food", "BBQ & Grill", "Rice & Karahi", "Beverages", "Desserts"];
 const STATION_OPTIONS = ["Grill", "Bar", "Dessert", "Fry"];
@@ -29,6 +30,7 @@ const renderItemImage = (image) => {
 };
 
 export default function Menu() {
+  const { getData } = useDataCache();
   const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [inventory, setInventory] = useState([]);
@@ -62,9 +64,9 @@ export default function Menu() {
   const load = () => {
     setLoading(true);
     Promise.all([
-      api.list("menu_items"),
-      api.list("inventory_items"),
-      api.list("recipes")
+      getData("menu_items"),
+      getData("inventory_items"),
+      getData("recipes")
     ]).then(([m, i, r]) => {
       setItems(m);
       setInventory(i);
@@ -352,7 +354,6 @@ export default function Menu() {
       <Modal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onSubmit={save}
         title={editing ? "Edit Menu Item" : "Add New Menu Item"}
         width="max-w-2xl"
         footer={
@@ -547,7 +548,6 @@ export default function Menu() {
       <Modal
         open={!!confirmDelete}
         onClose={() => setConfirmDelete(null)}
-        onSubmit={remove}
         title="Delete menu item?"
         footer={
           <>
