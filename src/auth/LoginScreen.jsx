@@ -4,6 +4,7 @@ import {
   Lock, X, KeyRound, RefreshCw, ShieldAlert
 } from "lucide-react";
 import { useAuth } from "./AuthContext";
+import { useRestaurant } from "../context/RestaurantContext";
 import api from "../api/client";
 
 /* ── Admin Override / Forgot PIN Modal ──────────────────────────────────── */
@@ -215,6 +216,7 @@ function PinPad({ onPress, onClear, onBack }) {
 /* ── Main Login Screen ──────────────────────────────────────────────────── */
 export default function LoginScreen() {
   const { loginWithPin, loginWithPassword } = useAuth();
+  const { profile } = useRestaurant();
   const [tab, setTab] = useState("pin"); // pin | password
   const [pin, setPin] = useState("");
   const [username, setUsername] = useState("");
@@ -331,11 +333,15 @@ export default function LoginScreen() {
           <div className="bg-white border border-canvas-200 rounded-3xl p-7 shadow-xl shadow-canvas-200/50">
             {/* Logo + Title */}
             <div className="flex flex-col items-center mb-6">
-              <div className="h-14 w-14 rounded-2xl bg-paprika-500 flex items-center justify-center mb-4 shadow-lg shadow-paprika-500/30">
-                <UtensilsCrossed size={26} className="text-white" strokeWidth={2} />
-              </div>
-              <h1 className="font-display font-bold text-xl text-ink-900">Dastarkhwan ERP</h1>
-              <p className="text-xs text-ink-500 mt-1 tracking-wide">Restaurant Management System</p>
+              {profile?.logo ? (
+                <img src={profile.logo} alt="Logo" className="h-16 w-16 object-contain mb-4 drop-shadow-md" />
+              ) : (
+                <div className="h-14 w-14 rounded-2xl bg-paprika-500 flex items-center justify-center mb-4 shadow-lg shadow-paprika-500/30">
+                  <UtensilsCrossed size={26} className="text-white" strokeWidth={2} />
+                </div>
+              )}
+              <h1 className="font-display font-bold text-xl text-ink-900">{profile?.name || "Dastarkhwan ERP"}</h1>
+              <p className="text-xs text-ink-500 mt-1 tracking-wide">{profile?.tagline || "Restaurant Management System"}</p>
             </div>
 
             {/* Tab Toggle */}

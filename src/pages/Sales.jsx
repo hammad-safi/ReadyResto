@@ -1,3 +1,4 @@
+import DatePicker from "../components/ui/DatePicker";
 import { useEffect, useMemo, useState } from "react";
 import {
   Receipt as ReceiptIcon, Undo2, Wallet, TrendingUp, Calendar,
@@ -15,7 +16,6 @@ import api from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useDashboardFilters } from "../context/DashboardFilterContext";
 import { useDataCache } from "../context/DataCacheContext";
-import DatePicker from "../components/ui/DatePicker";
 
 const RETURN_REASONS = [
   "Customer complaint",
@@ -78,7 +78,7 @@ function formatDateTime(iso, fallbackTime) {
 }
 
 export default function Sales({ onNewSale }) {
-  const { getData } = useDataCache();
+  const { getData, cacheTick } = useDataCache();
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [returns, setReturns] = useState([]);
@@ -120,7 +120,7 @@ export default function Sales({ onNewSale }) {
     getData("menu_items").then(setMenuItems);
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [cacheTick]);
 
 
 
@@ -373,14 +373,14 @@ export default function Sales({ onNewSale }) {
             <Field label="From date">
               <div className="relative">
                 <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                <DatePicker   value={dateFrom} onChange={(e) = /> setDateFrom(e.target.value)}
+                <DatePicker   value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
                   className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
               </div>
             </Field>
             <Field label="To date">
               <div className="relative">
                 <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                <DatePicker   value={dateTo} onChange={(e) = /> setDateTo(e.target.value)}
+                <DatePicker   value={dateTo} onChange={(e) => setDateTo(e.target.value)}
                   className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
               </div>
             </Field>

@@ -1,7 +1,7 @@
+import DatePicker from "../components/ui/DatePicker";
 import { useState } from "react";
 import EntityManager from "../components/entity/EntityManager";
 import Badge, { statusTone } from "../components/ui/Badge";
-import DatePicker from "../components/ui/DatePicker";
 
 const fmtDate = (v) => {
   if (!v) return "—";
@@ -83,12 +83,12 @@ export default function Employees() {
           </div>
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500 mb-1">From Date</p>
-            <DatePicker   value={dateFrom} onChange={(e) = /> setDateFrom(e.target.value)}
+            <DatePicker   value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
               className="w-full border border-canvas-200 bg-white rounded-lg px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
           </div>
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500 mb-1">To Date</p>
-            <DatePicker   value={dateTo} onChange={(e) = /> setDateTo(e.target.value)}
+            <DatePicker   value={dateTo} onChange={(e) => setDateTo(e.target.value)}
               className="w-full border border-canvas-200 bg-white rounded-lg px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
           </div>
         </div>

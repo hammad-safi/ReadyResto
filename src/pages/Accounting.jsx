@@ -1,3 +1,4 @@
+import DatePicker from "../components/ui/DatePicker";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../components/ui/PageHeader";
 import { useDialog } from "../context/DialogContext";
@@ -10,7 +11,6 @@ import { useAuth } from "../auth/AuthContext";
 import { useDashboardFilters } from "../context/DashboardFilterContext";
 import { useDataCache } from "../context/DataCacheContext";
 import { 
-import DatePicker from "../components/ui/DatePicker";
   BookOpen, TrendingUp, TrendingDown, DollarSign, BarChart3, Building2, 
   CreditCard, Plus, Edit3, Trash2, Search, Filter, Calendar, ChevronDown, 
   Wallet, PiggyBank, ArrowUpRight, ArrowDownRight, FileText, Layers, Scale, 
@@ -540,7 +540,7 @@ function JournalEntries({ journal, accounts, onRefresh }) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-ink-700 mb-1">Date</label>
-                <DatePicker   required value={entryDate} onChange={e = /> setEntryDate(e.target.value)} className="w-full border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-paprika-500" />
+                <DatePicker   required value={entryDate} onChange={e => setEntryDate(e.target.value)} className="w-full border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-paprika-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-ink-700 mb-1">Description</label>
@@ -848,7 +848,7 @@ function BankAccounts({ banks, onRefresh }) {
 export default function Accounting() {
   const { user } = useAuth();
   const { alert, confirm } = useDialog();
-  const { getData } = useDataCache();
+  const { getData, cacheTick } = useDataCache();
   const { filters } = useDashboardFilters();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({

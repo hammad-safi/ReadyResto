@@ -20,7 +20,7 @@ function nextOrderId() {
 }
 
 export default function Tables() {
-  const { getData } = useDataCache();
+  const { getData, cacheTick } = useDataCache();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [tables, setTables] = useState([]);
@@ -51,7 +51,7 @@ export default function Tables() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [cacheTick]);
 
   const sections = [...new Set(tables.map((t) => t.section))];
 

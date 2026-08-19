@@ -102,7 +102,7 @@ const columns = [
 ];
 
 export default function Inventory() {
-  const { getData } = useDataCache();
+  const { getData, cacheTick } = useDataCache();
   
   // Ingredients list for selectors
   const [ingredients, setIngredients] = useState([]);

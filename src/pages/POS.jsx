@@ -420,12 +420,7 @@ export default function POS() {
     <div className="relative grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-5 h-full">
       {/* MENU PANEL */}
       <div className="min-w-0">
-        {!currentShift && (
-          <div className="mb-4 bg-saffron-50 border border-saffron-200 text-saffron-800 px-4 py-2 rounded-xl text-sm flex items-center gap-2">
-            <AlertCircle size={16} />
-            You don't have an open shift. Please open a shift in Accounting to track cash accurately.
-          </div>
-        )}
+
         {/* BRAND ROW + HELD ORDERS PILL */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">

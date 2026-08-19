@@ -289,7 +289,7 @@ function ResetPinModal({ open, onClose, targetUser }) {
 
 /* ── Users Sub-Tab ───────────────────────────────────────────────────────── */
 function UsersTab({ allRoles }) {
-  const { getData } = useDataCache();
+  const { getData, cacheTick } = useDataCache();
   const { user: currentUser, canDo } = useAuth();
   const canAdd = canDo("Users & Roles", "add");
   const canEdit = canDo("Users & Roles", "edit");
@@ -722,7 +722,7 @@ function PermissionsTab({ onRolesChange }) {
 
 /* ── Activity Log Sub-Tab ────────────────────────────────────────────────── */
 function ActivityTab() {
-  const { getData } = useDataCache();
+  const { getData, cacheTick } = useDataCache();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");

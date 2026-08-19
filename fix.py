@@ -1,13 +1,14 @@
-const fs = require('fs');
+import os
 
-let mainJs = fs.readFileSync('electron/main.js', 'utf-8');
+with open('electron/main.js', 'r', encoding='utf-8') as f:
+    content = f.read()
 
-// Fix 1: clearData logic
-const oldClear = `      db.exec("BEGIN TRANSACTION;");
+# Fix 1: clearData logic
+old_clear = '''      db.exec("BEGIN TRANSACTION;");
       db.exec("PRAGMA defer_foreign_keys = ON;");
       for (const t of tables) {
         if (t.name !== "sqlite_sequence") {
-          db.prepare(\`DELETE FROM \${t.name}\`).run();
+          db.prepare(`DELETE FROM ${t.name}`).run();
         }
       }
       db.exec("COMMIT;");
@@ -18,12 +19,12 @@ const oldClear = `      db.exec("BEGIN TRANSACTION;");
       // Reseed the database with required default rows (Admin user, Accounts, etc.)
       seed(db);
 
-      return { success: true };`;
+      return { success: true };'''
 
-const newClear = `      db.exec("BEGIN TRANSACTION;");
+new_clear = '''      db.exec("BEGIN TRANSACTION;");
       db.exec("PRAGMA defer_foreign_keys = ON;");
       for (const t of tables) {
-        db.prepare(\`DELETE FROM "\${t.name}"\`).run();
+        db.prepare(`DELETE FROM "${t.name}"`).run();
       }
       db.exec("COMMIT;");
       
@@ -32,7 +33,7 @@ const newClear = `      db.exec("BEGIN TRANSACTION;");
       
       // Reseed ONLY Admin user and default Accounts
       db.exec("BEGIN TRANSACTION;");
-      db.prepare(\`INSERT INTO users (name, role, pin, password, email, phone, branch, status, last_login) VALUES ('System Admin', 'Owner', '1234', 'owner123', 'admin@dastarkhwan.pk', '0300-0000000', 'Main Branch', 'active', 'Never')\`).run();
+      db.prepare(`INSERT INTO users (name, role, pin, password, email, phone, branch, status, last_login) VALUES ('System Admin', 'Owner', '1234', 'owner123', 'admin@dastarkhwan.pk', '0300-0000000', 'Main Branch', 'active', 'Never')`).run();
       
       const defaultAccounts = [
         { code: '1000', name: 'Assets', type: 'asset', parent_code: null, is_system: 1 },
@@ -73,16 +74,15 @@ const newClear = `      db.exec("BEGIN TRANSACTION;");
       const { seedPermissions } = require('./db.js');
       seedPermissions(db);
 
-      return { success: true };`;
-
-if (mainJs.includes(oldClear)) {
-  mainJs = mainJs.replace(oldClear, newClear);
-} else {
-  console.log('Failed to replace clearData logic');
-}
-
-// Fix 2: Add orders:updateKitchenStatus handler
-const oldHandler = `      if (order.table_id) {
+      return { success: true };'''
+      
+if old_clear in content:
+    content = content.replace(old_clear, new_clear)
+else:
+    print('Failed to replace clearData logic')
+    
+# Fix 2: Add orders:updateKitchenStatus handler
+old_handler = '''      if (order.table_id) {
         db.prepare("UPDATE tables_floor SET status = 'available', order_id = NULL WHERE id = ?").run(order.table_id);
       }
     }
@@ -90,13 +90,13 @@ const oldHandler = `      if (order.table_id) {
     db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, id);
 
     const time = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-    db.prepare(\`INSERT INTO audit_log (time, user, module, action, ip_device) VALUES (?, ?, ?, ?, ?)\`).run(
-      time, meta.user || "System", "POS Billing", \`Marked Order #\${id} as \${status}\`, meta.device || DEVICE_NAME
+    db.prepare(`INSERT INTO audit_log (time, user, module, action, ip_device) VALUES (?, ?, ?, ?, ?)`).run(
+      time, meta.user || "System", "POS Billing", `Marked Order #${id} as ${status}`, meta.device || DEVICE_NAME
     );
     return { ...order, status };
-  });`;
-
-const newHandler = `      if (order.table_id) {
+  });'''
+  
+new_handler = '''      if (order.table_id) {
         db.prepare("UPDATE tables_floor SET status = 'available', order_id = NULL WHERE id = ?").run(order.table_id);
       }
     }
@@ -104,8 +104,8 @@ const newHandler = `      if (order.table_id) {
     db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, id);
 
     const time = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-    db.prepare(\`INSERT INTO audit_log (time, user, module, action, ip_device) VALUES (?, ?, ?, ?, ?)\`).run(
-      time, meta.user || "System", "POS Billing", \`Marked Order #\${id} as \${status}\`, meta.device || DEVICE_NAME
+    db.prepare(`INSERT INTO audit_log (time, user, module, action, ip_device) VALUES (?, ?, ?, ?, ?)`).run(
+      time, meta.user || "System", "POS Billing", `Marked Order #${id} as ${status}`, meta.device || DEVICE_NAME
     );
     return { ...order, status };
   });
@@ -117,29 +117,31 @@ const newHandler = `      if (order.table_id) {
     db.prepare("UPDATE orders SET kitchen_status = ? WHERE id = ?").run(kitchen_status, id);
 
     const time = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-    db.prepare(\`INSERT INTO audit_log (time, user, module, action, ip_device) VALUES (?, ?, ?, ?, ?)\`).run(
-      time, meta.user || "System", "Kitchen Display", \`Marked Order #\${id} as \${kitchen_status}\`, meta.device || DEVICE_NAME
+    db.prepare(`INSERT INTO audit_log (time, user, module, action, ip_device) VALUES (?, ?, ?, ?, ?)`).run(
+      time, meta.user || "System", "Kitchen Display", `Marked Order #${id} as ${kitchen_status}`, meta.device || DEVICE_NAME
     );
     return { ...order, kitchen_status };
-  });`;
+  });'''
 
-if (mainJs.includes(oldHandler)) {
-  mainJs = mainJs.replace(oldHandler, newHandler);
-} else {
-  console.log('Failed to add orders:updateKitchenStatus handler');
-}
+if old_handler in content:
+    content = content.replace(old_handler, new_handler)
+else:
+    print('Failed to add orders:updateKitchenStatus handler')
 
-fs.writeFileSync('electron/main.js', mainJs, 'utf-8');
+with open('electron/main.js', 'w', encoding='utf-8') as f:
+    f.write(content)
 
-let preloadJs = fs.readFileSync('electron/preload.js', 'utf-8');
-const oldPreload = 'updateOrderStatus: (id, status, meta) => ipcRenderer.invoke("orders:updateStatus", id, status, meta),';
-const newPreload = 'updateOrderStatus: (id, status, meta) => ipcRenderer.invoke("orders:updateStatus", id, status, meta),\n  updateKitchenStatus: (id, status, meta) => ipcRenderer.invoke("orders:updateKitchenStatus", id, status, meta),';
+with open('electron/preload.js', 'r', encoding='utf-8') as f:
+    preload = f.read()
+    
+old_preload = 'updateOrderStatus: (id, status, meta) => ipcRenderer.invoke("orders:updateStatus", id, status, meta),'
+new_preload = 'updateOrderStatus: (id, status, meta) => ipcRenderer.invoke("orders:updateStatus", id, status, meta),\n  updateKitchenStatus: (id, status, meta) => ipcRenderer.invoke("orders:updateKitchenStatus", id, status, meta),'
 
-if (preloadJs.includes(oldPreload)) {
-  preloadJs = preloadJs.replace(oldPreload, newPreload);
-} else {
-  console.log('Failed to add updateKitchenStatus to preload.js');
-}
-
-fs.writeFileSync('electron/preload.js', preloadJs, 'utf-8');
-console.log('Done!');
+if old_preload in preload:
+    preload = preload.replace(old_preload, new_preload)
+else:
+    print('Failed to add updateKitchenStatus to preload.js')
+    
+with open('electron/preload.js', 'w', encoding='utf-8') as f:
+    f.write(preload)
+print('Done!')

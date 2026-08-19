@@ -338,7 +338,9 @@ function openDatabase(userDataPath) {
       visits INTEGER DEFAULT 0,
       points INTEGER DEFAULT 0,
       credit REAL DEFAULT 0,
-      tier TEXT DEFAULT 'Silver'
+      tier TEXT DEFAULT 'Silver',
+      total_billed REAL DEFAULT 0,
+      total_paid REAL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS employees (
@@ -633,6 +635,8 @@ function migrate(db) {
   try { db.exec("ALTER TABLE orders ADD COLUMN kitchen_status TEXT DEFAULT 'new'"); } catch { /* exists */ }
   try { db.exec("ALTER TABLE expenses ADD COLUMN payment_account TEXT DEFAULT 'Cash in Drawer'"); } catch { /* exists */ }
   try { db.exec("ALTER TABLE supplier_payments ADD COLUMN bank_account_id INTEGER"); } catch { /* exists */ }
+  try { db.exec("ALTER TABLE customers ADD COLUMN total_billed REAL DEFAULT 0"); } catch { /* exists */ }
+  try { db.exec("ALTER TABLE customers ADD COLUMN total_paid REAL DEFAULT 0"); } catch { /* exists */ }
 
   // Ensure role_permissions and custom_roles tables exist (idempotent via CREATE IF NOT EXISTS above)
   // Seed default permissions if none exist yet
@@ -883,4 +887,4 @@ function seed(db) {
   }
 }
 
-module.exports = { openDatabase, ALLOWED_TABLES, MODULES, DEFAULT_PERMISSIONS, MODULE_OVERRIDES };
+module.exports = { openDatabase, seed, seedPermissions, ALLOWED_TABLES, MODULES, DEFAULT_PERMISSIONS, MODULE_OVERRIDES };

@@ -6,7 +6,7 @@ const DataCacheContext = createContext();
 export function DataCacheProvider({ children }) {
   const cacheRef = useRef({});
   const versionsRef = useRef({});
-  const [, forceUpdate] = useState(0);
+  const [cacheTick, forceUpdate] = useState(0);
 
   const getData = useCallback(async (table, options) => {
     const currentVersion = api.getStoreVersion ? api.getStoreVersion() : 0;
@@ -52,7 +52,7 @@ export function DataCacheProvider({ children }) {
   }, [invalidate, invalidateAll]);
 
   return (
-    <DataCacheContext.Provider value={{ getData, invalidate, invalidateAll }}>
+    <DataCacheContext.Provider value={{ getData, invalidate, invalidateAll, cacheTick }}>
       {children}
     </DataCacheContext.Provider>
   );

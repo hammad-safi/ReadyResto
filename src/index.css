@@ -131,70 +131,6 @@
   }
 }
 
-/* React DatePicker Customization */
-.react-datepicker-wrapper {
-  width: 100%;
-}
-.react-datepicker {
-  font-family: inherit;
-  border: 1px solid rgb(var(--border-default));
-  background-color: rgb(var(--surface-card));
-  border-radius: 0.75rem;
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  overflow: hidden;
-}
-.react-datepicker__header {
-  background-color: rgb(var(--surface-table-header));
-  border-bottom: 1px solid rgb(var(--border-default));
-  padding-top: 0.5rem;
-}
-.react-datepicker__current-month,
-.react-datepicker-time__header,
-.react-datepicker-year-header {
-  color: rgb(var(--text-base));
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-.react-datepicker__day-name,
-.react-datepicker__day,
-.react-datepicker__time-name {
-  color: rgb(var(--text-base));
-  width: 2rem;
-  line-height: 2rem;
-  margin: 0.166rem;
-}
-.react-datepicker__day--selected,
-.react-datepicker__day--in-selecting-range,
-.react-datepicker__day--in-range,
-.react-datepicker__month-text--selected,
-.react-datepicker__month-text--in-selecting-range,
-.react-datepicker__month-text--in-range,
-.react-datepicker__quarter-text--selected,
-.react-datepicker__quarter-text--in-selecting-range,
-.react-datepicker__quarter-text--in-range,
-.react-datepicker__year-text--selected,
-.react-datepicker__year-text--in-selecting-range,
-.react-datepicker__year-text--in-range {
-  border-radius: 0.375rem;
-  background-color: rgb(var(--color-primary-500));
-  color: rgb(var(--text-inverse));
-}
-.react-datepicker__day:hover,
-.react-datepicker__month-text:hover,
-.react-datepicker__quarter-text:hover,
-.react-datepicker__year-text:hover {
-  border-radius: 0.375rem;
-  background-color: rgb(var(--color-canvas-200));
-  color: rgb(var(--text-base));
-}
-.react-datepicker__day--keyboard-selected {
-  background-color: rgb(var(--color-primary-100));
-  color: rgb(var(--text-base));
-}
-.react-datepicker__day--disabled {
-  color: rgb(var(--text-muted));
-}
-
 /* ═══════════════════════════════════════════════════════════════
    THEME OVERRIDES  (html.theme-* > html)
    Every theme must reset ALL variables so switching from dark→light works
@@ -412,6 +348,18 @@ html.theme-midnight-indigo textarea {
   background-color: rgb(var(--surface-input)) !important;
   color: rgb(var(--text-base)) !important;
   border-color: rgb(var(--border-default)) !important;
+}
+
+html.theme-dark-charcoal input[type="date"]::-webkit-calendar-picker-indicator,
+html.theme-midnight-indigo input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8) hue-rotate(180deg);
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+html.theme-dark-charcoal input[type="date"]::-webkit-calendar-picker-indicator:hover,
+html.theme-midnight-indigo input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }
 
 /* ── Dark-mode: tables ── */

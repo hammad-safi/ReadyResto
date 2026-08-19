@@ -45,10 +45,10 @@
     "wait-on": "^9.0.10"
   },
   "build": {
-    "appId": "com.webzen.dastarkhwan-erp",
-    "productName": "Dastarkhwan ERP",
+    "appId": "com.dastarkhwan.erp",
+    "productName": "Dastarkhwan ERP Setup",
     "directories": {
-      "output": "release"
+      "output": "build_out"
     },
     "files": [
       "dist/**/*",
@@ -60,12 +60,6 @@
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
           "arch": [
             "x64"
           ]

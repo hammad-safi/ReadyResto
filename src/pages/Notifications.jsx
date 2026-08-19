@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 export default function Notifications() {
-  const { getData, invalidate } = useDataCache();
+  const { getData, invalidate, cacheTick } = useDataCache();
   const { confirm } = useDialog();
   const [rows, setRows] = useState([]);
   const [preferences, setPreferences] = useState(null);

@@ -69,7 +69,7 @@ function EmptyChart({ message }) {
 }
 
 export default function Dashboard() {
-  const { getData } = useDataCache();
+  const { getData, cacheTick } = useDataCache();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);

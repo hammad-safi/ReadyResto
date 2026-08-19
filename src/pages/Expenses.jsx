@@ -1,3 +1,4 @@
+import DatePicker from "../components/ui/DatePicker";
 import { useEffect, useState, useMemo } from "react";
 import { Wallet, Calendar } from "lucide-react";
 import EntityManager from "../components/entity/EntityManager";
@@ -5,10 +6,9 @@ import StatCard from "../components/ui/StatCard";
 import api from "../api/client";
 import { useDashboardFilters } from "../context/DashboardFilterContext";
 import { useDataCache } from "../context/DataCacheContext";
-import DatePicker from "../components/ui/DatePicker";
 
 export default function Expenses() {
-  const { getData } = useDataCache();
+  const { getData, cacheTick } = useDataCache();
   const [summary, setSummary] = useState({ total: 0, count: 0 });
   const [stats, setStats] = useState({
     largestCategory: { name: "-", amount: 0 },
@@ -28,7 +28,7 @@ export default function Expenses() {
   useEffect(() => {
     getData("accounts").then(setAccounts);
     getData("employees").then(setEmployees);
-  }, []);
+  }, [cacheTick]);
 
   const expenseAccounts = useMemo(() => {
     return accounts.filter(a => a.type?.toLowerCase() === 'expense');
@@ -215,7 +215,7 @@ export default function Expenses() {
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500 mb-1">From date</p>
               <div className="relative">
                 <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                <DatePicker   value={dateFrom} onChange={(e) = /> setDateFrom(e.target.value)}
+                <DatePicker   value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
                   className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
               </div>
             </div>
@@ -223,7 +223,7 @@ export default function Expenses() {
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500 mb-1">To date</p>
               <div className="relative">
                 <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                <DatePicker   value={dateTo} onChange={(e) = /> setDateTo(e.target.value)}
+                <DatePicker   value={dateTo} onChange={(e) => setDateTo(e.target.value)}
                   className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
               </div>
             </div>
@@ -245,12 +245,12 @@ export default function Expenses() {
             </div>
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500 mb-1">From Date</p>
-            <DatePicker   value={dateFrom} onChange={(e) = /> setDateFrom(e.target.value)}
+            <DatePicker   value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
               className="w-full border border-canvas-200 bg-white rounded-lg px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
           </div>
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500 mb-1">To Date</p>
-            <DatePicker   value={dateTo} onChange={(e) = /> setDateTo(e.target.value)}
+            <DatePicker   value={dateTo} onChange={(e) => setDateTo(e.target.value)}
               className="w-full border border-canvas-200 bg-white rounded-lg px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
           </div>
         </div>

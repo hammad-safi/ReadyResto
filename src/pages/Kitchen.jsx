@@ -80,7 +80,7 @@ const playCancelChime = () => {
 };
 
 export default function Kitchen() {
-  const { getData } = useDataCache();
+  const { getData, cacheTick } = useDataCache();
   const { user } = useAuth();
   const [orders,        setOrders]        = useState([]);
   const [items,         setItems]         = useState([]);

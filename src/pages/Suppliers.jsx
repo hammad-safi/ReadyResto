@@ -1,3 +1,4 @@
+import DatePicker from "../components/ui/DatePicker";
 import {  useEffect, useState, useMemo  } from "react";
 import useStickyState from "../hooks/useStickyState";
 import { useSearchParams } from "react-router-dom";
@@ -14,7 +15,6 @@ import Button from "../components/ui/Button";
 import Modal from "../components/ui/Modal";
 import Badge, { statusTone } from "../components/ui/Badge";
 import ModuleTable from "../components/ui/ModuleTable";
-import DatePicker from "../components/ui/DatePicker";
 
 const fmt = (n) => `Rs. ${Math.max(0, Math.round(Number(n) || 0)).toLocaleString()}`;
 
@@ -210,7 +210,7 @@ function PaymentModal({ open, supplier, onClose, onSaved }) {
               <label className="block text-sm font-bold text-ink-800 mb-1">Payment Date</label>
               <DatePicker  
                 value={form.date}
-                onChange={e = /> setForm(p => ({ ...p, date: e.target.value }))}
+                onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
                 className="w-full border border-canvas-200 rounded-xl px-3 py-2.5 text-sm bg-canvas-50 outline-none focus:ring-2 focus:ring-paprika-500/20 focus:border-paprika-400 transition-all"
               />
             </div>
@@ -239,7 +239,7 @@ function PaymentModal({ open, supplier, onClose, onSaved }) {
 
 // ─── Main Suppliers Page ──────────────────────────────────────────────────────
 export default function Suppliers() {
-  const { getData } = useDataCache();
+  const { getData, cacheTick } = useDataCache();
   const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -266,7 +266,7 @@ export default function Suppliers() {
     getData("suppliers").then(data => { setRows(data); setLoading(false); });
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [cacheTick]);
 
   const handleDelete = async () => {
     await api.remove("suppliers", confirmDelete.id, { user: user?.name, module: "Supplier", action: `Deleted supplier ${confirmDelete.name}` });

@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld("api", {
   createOrderWithItems: (order, items, meta) => ipcRenderer.invoke("orders:createWithItems", order, items, meta),
   updateOrderWithItems: (orderId, orderUpdates, items, meta) => ipcRenderer.invoke("orders:createWithItems", { ...orderUpdates, id: orderId }, items, meta),
   updateOrderStatus: (id, status, meta) => ipcRenderer.invoke("orders:updateStatus", id, status, meta),
+  updateKitchenStatus: (id, status, meta) => ipcRenderer.invoke("orders:updateKitchenStatus", id, status, meta),
 
   // Purchases & Payments
   processPurchaseOrder: (po, items, meta) => ipcRenderer.invoke("purchases:processOrder", po, items, meta),
@@ -88,4 +89,6 @@ contextBridge.exposeInMainWorld("api", {
   getDeviceName: () => ipcRenderer.invoke("app:getDeviceName"),
   getPrinters: () => ipcRenderer.invoke("system:getPrinters"),
   clearData: () => ipcRenderer.invoke("system:clearData"),
+  exportData: () => ipcRenderer.invoke("system:exportData"),
+  importData: (data) => ipcRenderer.invoke("system:importData", data),
 });

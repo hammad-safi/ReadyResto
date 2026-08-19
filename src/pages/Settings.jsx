@@ -27,7 +27,7 @@ const PRESET_AVATARS = [
 ];
 
 export default function Settings() {
-  const { getData } = useDataCache();
+  const { getData, cacheTick } = useDataCache();
   const { autoLockMinutes, setAutoLockMinutes } = useAuth();
   const { profile: globalProfile, updateProfile: saveGlobalProfile } = useRestaurant();
   const { filters: globalFilters } = useDashboardFilters();
@@ -175,26 +175,20 @@ export default function Settings() {
   const STORE_KEY = "dastarkhwan-erp-store-v1";
   const SETTINGS_KEY = "dastarkhwan-erp-settings-v1";
 
-  const handleExport = () => {
-    const store = localStorage.getItem(STORE_KEY);
-    const settings = localStorage.getItem(SETTINGS_KEY);
-    if (!store && !settings) {
-      alert("No data found to export.");
-      return;
+  const handleExport = async () => {
+    try {
+      const data = await api.exportData();
+      const bundle = JSON.stringify(data, null, 2);
+      const blob = new Blob([bundle], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `dastarkhwan_backup_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Failed to export data: " + err.message);
     }
-    const bundle = JSON.stringify({
-      __version: 1,
-      __exported_at: new Date().toISOString(),
-      store: store ? JSON.parse(store) : null,
-      settings: settings ? JSON.parse(settings) : null,
-    }, null, 2);
-    const blob = new Blob([bundle], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `dastarkhwan_backup_${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   const handleImportClick = () => {
@@ -210,17 +204,15 @@ export default function Settings() {
       try {
         const parsed = JSON.parse(event.target.result);
         if (await confirm("Warning: This will overwrite ALL current data with the backup. Are you sure?")) {
-          if (parsed.__version === 1) {
-            if (parsed.store)    localStorage.setItem(STORE_KEY, JSON.stringify(parsed.store));
-            if (parsed.settings) localStorage.setItem(SETTINGS_KEY, JSON.stringify(parsed.settings));
-          } else {
-            localStorage.setItem(STORE_KEY, JSON.stringify(parsed));
-          }
+          // Normalize legacy backups
+          const payload = parsed.__version === 1 ? parsed : { store: parsed };
+          await api.importData(payload);
           await alert("Backup restored successfully. The application will now reload.");
           window.location.reload();
         }
-      } catch {
-        await alert("Invalid backup file. Please upload a valid JSON backup.");
+      } catch (err) {
+        await alert("Invalid backup file or import failed.");
+        console.error(err);
       }
     };
     reader.readAsText(file);

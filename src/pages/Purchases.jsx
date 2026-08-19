@@ -1,3 +1,4 @@
+import DatePicker from "../components/ui/DatePicker";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { Search, Plus, Trash2, PackagePlus, FileEdit, Truck, CheckCircle2, Calendar, RotateCcw, AlertTriangle, ArrowLeftRight, Check, X, ShieldAlert, ChevronDown, Printer } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
@@ -11,7 +12,6 @@ import { useDashboardFilters } from "../context/DashboardFilterContext";
 import { useDataCache } from "../context/DataCacheContext";
 import Modal from "../components/ui/Modal";
 import PurchaseReceipt from "../components/pos/PurchaseReceipt";
-import DatePicker from "../components/ui/DatePicker";
 
 function SearchableSelect({
   value,
@@ -157,7 +157,7 @@ const RETURN_REASONS = [
 ];
 
 export default function Purchases() {
-  const { getData } = useDataCache();
+  const { getData, cacheTick } = useDataCache();
   const { confirm } = useDialog();
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const [pos, setPOs] = useState([]);
@@ -235,7 +235,7 @@ export default function Purchases() {
     setPrintPOItems(items);
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [cacheTick]);
 
   const totalSpend = pos.reduce((s, p) => s + Number(p.total || 0), 0);
   const receivedCount = pos.filter(p => p.status === "received").length;
@@ -610,17 +610,6 @@ export default function Purchases() {
               alwaysVisible: true, 
               render: (r) => (
                 <div className="flex items-center gap-1.5 justify-end" onClick={(e) => e.stopPropagation()}>
-                  {/* Receive Action */}
-                  {r.status !== "received" && r.status !== "returned" && (
-                    <button 
-                      onClick={(e) => handleQuickReceive(r, e)} 
-                      title="Receive PO & Add to Stock"
-                      className="status-badge status-success rounded hover:opacity-80"
-                    >
-                      <CheckCircle2 size={12} /> Receive
-                    </button>
-                  )}
-
                   {/* Return Action */}
                   {(r.status === "received" || r.status === "partially_returned") && (
                     <button 
@@ -673,14 +662,14 @@ export default function Purchases() {
               <Field label="From date">
                 <div className="relative">
                   <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                  <DatePicker   value={dateFrom} onChange={(e) = /> setDateFrom(e.target.value)}
+                  <DatePicker   value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
                     className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
                 </div>
               </Field>
               <Field label="To date">
                 <div className="relative">
                   <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                  <DatePicker   value={dateTo} onChange={(e) = /> setDateTo(e.target.value)}
+                  <DatePicker   value={dateTo} onChange={(e) => setDateTo(e.target.value)}
                     className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
                 </div>
               </Field>
@@ -833,7 +822,7 @@ export default function Purchases() {
               )}
             </Field>
             <Field label="Order Date">
-              <DatePicker   value={date} onChange={e = /> setDate(e.target.value)} disabled={isReadOnly} className="mt-1 w-full border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none disabled:bg-canvas-50 disabled:text-ink-500" />
+              <DatePicker   value={date} onChange={e => setDate(e.target.value)} disabled={isReadOnly} className="mt-1 w-full border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none disabled:bg-canvas-50 disabled:text-ink-500" />
             </Field>
             <Field label="Status">
               <select value={status} onChange={e => setStatus(e.target.value)} disabled={isReadOnly} className="mt-1 w-full border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none disabled:bg-canvas-50 disabled:text-ink-500 font-medium">

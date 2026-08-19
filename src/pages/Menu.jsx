@@ -30,7 +30,7 @@ const renderItemImage = (image) => {
 };
 
 export default function Menu() {
-  const { getData } = useDataCache();
+  const { getData, cacheTick } = useDataCache();
   const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [inventory, setInventory] = useState([]);
@@ -66,7 +66,7 @@ export default function Menu() {
     Promise.all([
       getData("menu_items"),
       getData("inventory_items"),
-      getData("recipes")
+      getData("recipe_ingredients")
     ]).then(([m, i, r]) => {
       setItems(m);
       setInventory(i);
@@ -77,7 +77,7 @@ export default function Menu() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [cacheTick]);
 
   const filtered = items.filter((m) => {
     if (category !== "All" && m.category !== category) return false;
@@ -163,9 +163,9 @@ export default function Menu() {
   };
 
   const filteredInventory = useMemo(() => {
-    const q = invSearch.toLowerCase();
-    if (!q) return inventory.slice(0, 10);
-    return inventory.filter(i => i.name.toLowerCase().includes(q)).slice(0, 10);
+    return inventory.filter((i) => {
+      return i.name.toLowerCase().includes(invSearch.toLowerCase());
+    }).slice(0, 10);
   }, [inventory, invSearch]);
 
   const addInvItem = (item) => {
@@ -197,14 +197,14 @@ export default function Menu() {
       savedItem = await api.update("menu_items", editing.id, payload, { user: user.name, module: "Menu Management", action: `Updated menu item "${form.name}"` });
       const oldLines = recipes.filter(r => r.menu_item_id === editing.id);
       for (const o of oldLines) {
-        await api.remove("recipes", o.id);
+        await api.remove("recipe_ingredients", o.id);
       }
     } else {
       savedItem = await api.create("menu_items", payload, { user: user.name, module: "Menu Management", action: `Added menu item "${form.name}"` });
     }
     
     for (const l of recipeLines) {
-      await api.create("recipes", {
+      await api.create("recipe_ingredients", {
         menu_item_id: savedItem.id,
         inventory_item_id: l.inventory_item_id,
         qty: l.qty

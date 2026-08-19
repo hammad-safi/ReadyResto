@@ -1,3 +1,4 @@
+import DatePicker from "../components/ui/DatePicker";
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Calendar, Trash2, Plus, Minus, Search, AlertTriangle, CheckCircle2, UserRound, X, ChevronDown } from "lucide-react";
@@ -12,7 +13,6 @@ import Receipt from "../components/pos/Receipt";
 import CheckoutModal from "../components/pos/CheckoutModal";
 import api from "../api/client";
 import { useDataCache } from "../context/DataCacheContext";
-import DatePicker from "../components/ui/DatePicker";
 
 const TABS = ["All", "Dine-In", "Takeaway", "Delivery", "Phone"];
 const RETURN_REASONS = [
@@ -106,7 +106,7 @@ function SearchableSelect({ value, onChange, options, placeholder, displayKey = 
 }
 
 export default function Orders() {
-  const { getData } = useDataCache();
+  const { getData, cacheTick } = useDataCache();
   const { user } = useAuth();
   const [tab, setTab] = useState("All");
   const [dateFrom, setDateFrom] = useState("");
@@ -175,7 +175,7 @@ export default function Orders() {
   };
   useEffect(() => {
     void load();
-  }, []);
+  }, [cacheTick]);
 
   const loadOrderDetails = async (order) => {
     const [items, rets] = await Promise.all([
@@ -531,7 +531,7 @@ export default function Orders() {
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500 mb-1">From date</p>
               <div className="relative">
                 <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                <DatePicker   value={dateFrom} onChange={(e) = /> setDateFrom(e.target.value)}
+                <DatePicker   value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
                   className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
               </div>
             </div>
@@ -539,7 +539,7 @@ export default function Orders() {
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500 mb-1">To date</p>
               <div className="relative">
                 <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-                <DatePicker   value={dateTo} onChange={(e) = /> setDateTo(e.target.value)}
+                <DatePicker   value={dateTo} onChange={(e) => setDateTo(e.target.value)}
                   className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
               </div>
             </div>

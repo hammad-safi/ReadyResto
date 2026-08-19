@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, nativeImage } = require("electron");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
-const { openDatabase, ALLOWED_TABLES, MODULES, DEFAULT_PERMISSIONS, MODULE_OVERRIDES } = require("./db");
+const { openDatabase, seedPermissions, ALLOWED_TABLES, MODULES, DEFAULT_PERMISSIONS, MODULE_OVERRIDES } = require("./db");
 
 let mainWindow;
 let db;
@@ -99,7 +99,7 @@ function checkAlerts(db) {
       for (const item of items) {
         if (Number(item.stock || 0) < threshold) {
           const alertText = `Low Stock: ${item.name} is at ${item.stock} ${item.unit} (Threshold: ${threshold} ${item.unit})`;
-          const exists = db.prepare("SELECT id FROM notifications WHERE type = 'low_stock' AND text = ? AND read = 0").get(alertText);
+          const exists = db.prepare("SELECT id FROM notifications WHERE type = 'low_stock' AND text = ?").get(alertText);
           if (!exists) {
             db.prepare("INSERT INTO notifications (type, text, time, read) VALUES ('low_stock', ?, ?, 0)").run(alertText, time);
           }
@@ -142,7 +142,7 @@ function checkAlerts(db) {
         const due = Number(supplier.due || 0);
         if (due > 15000) {
           const alertText = `Pending Payment: Balance of Rs. ${due.toLocaleString()} due for ${supplier.name}.`;
-          const exists = db.prepare("SELECT id FROM notifications WHERE type = 'payment' AND text = ? AND read = 0").get(alertText);
+          const exists = db.prepare("SELECT id FROM notifications WHERE type = 'payment' AND text = ?").get(alertText);
           if (!exists) {
             db.prepare("INSERT INTO notifications (type, text, time, read) VALUES ('payment', ?, ?, 0)").run(alertText, time);
           }
@@ -619,6 +619,14 @@ function registerIpcHandlers() {
     return db.prepare("SELECT * FROM orders WHERE id = ?").get(id);
   });
 
+  ipcMain.handle("orders:updateKitchenStatus", (e, id, kitchen_status, meta = {}) => {
+    const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(id);
+    if (!order) throw new Error("Order not found");
+    db.prepare("UPDATE orders SET kitchen_status = ? WHERE id = ?").run(kitchen_status, id);
+    if (meta.user) logAudit(meta.user, "Kitchen Display", `Marked ${id} as ${kitchen_status}`, meta.device);
+    return db.prepare("SELECT * FROM orders WHERE id = ?").get(id);
+  });
+
   // Purchases & Returns IPC Handlers
   ipcMain.handle("purchases:processOrder", (e, poData, itemsData, meta = {}) => {
     const poId = poData.id ?? null;
@@ -1066,17 +1074,63 @@ function registerIpcHandlers() {
   ipcMain.handle("system:getPrinters", async (e) => await e.sender.getPrintersAsync());
   ipcMain.handle("system:clearData", () => {
     try {
-      db.exec("BEGIN TRANSACTION");
-      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all();
+      try { db.exec("ROLLBACK;"); } catch (e) {} // close any dangling tx
+      
+      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+      
+      db.exec("BEGIN TRANSACTION;");
+      db.exec("PRAGMA defer_foreign_keys = ON;");
       for (const t of tables) {
-        db.prepare(`DELETE FROM ${t.name}`).run();
+        if (t.name !== "sqlite_sequence") {
+          db.prepare(`DELETE FROM "${t.name}"`).run();
+        }
       }
-      db.exec("COMMIT");
-      db.exec("VACUUM"); // Reclaim space
+      db.exec("COMMIT;");
       
-      // Re-seed default admin user so login doesn't break
-      db.prepare("INSERT INTO users (name, role, pin, password) VALUES (?, ?, ?, ?)").run("Admin", "Admin", "1234", "admin123");
+      db.exec("VACUUM;");
       
+      // Reseed ONLY Admin user and default Accounts
+      db.exec("BEGIN TRANSACTION;");
+      db.prepare(`INSERT INTO users (name, role, pin, password, email, phone, branch, status, last_login) VALUES ('System Admin', 'Owner', '1234', 'admin123', 'admin@dastarkhwan.pk', '0300-0000000', 'Main Branch', 'active', 'Never')`).run();
+      
+      const defaultAccounts = [
+        { code: '1000', name: 'Assets', type: 'asset', parent_code: null, is_system: 1 },
+        { code: '1001', name: 'Cash in Drawer', type: 'asset', parent_code: '1000', is_system: 1 },
+        { code: '1002', name: 'Bank Account (Main)', type: 'asset', parent_code: '1000', is_system: 1 },
+        { code: '1003', name: 'Accounts Receivable', type: 'asset', parent_code: '1000', is_system: 1 },
+        { code: '1004', name: 'Inventory', type: 'asset', parent_code: '1000', is_system: 1 },
+        { code: '1005', name: 'Prepaid Expenses', type: 'asset', parent_code: '1000', is_system: 1 },
+        { code: '2000', name: 'Liabilities', type: 'liability', parent_code: null, is_system: 1 },
+        { code: '2001', name: 'Accounts Payable', type: 'liability', parent_code: '2000', is_system: 1 },
+        { code: '2002', name: 'GST/Sales Tax Payable', type: 'liability', parent_code: '2000', is_system: 1 },
+        { code: '2003', name: 'Service Charge Payable', type: 'liability', parent_code: '2000', is_system: 1 },
+        { code: '2004', name: 'Employee Salaries Payable', type: 'liability', parent_code: '2000', is_system: 1 },
+        { code: '3000', name: 'Equity', type: 'equity', parent_code: null, is_system: 1 },
+        { code: '3001', name: 'Owner Capital', type: 'equity', parent_code: '3000', is_system: 1 },
+        { code: '3002', name: 'Retained Earnings', type: 'equity', parent_code: '3000', is_system: 1 },
+        { code: '4000', name: 'Income', type: 'income', parent_code: null, is_system: 1 },
+        { code: '4001', name: 'Food Sales Revenue', type: 'income', parent_code: '4000', is_system: 1 },
+        { code: '4002', name: 'Beverage Sales Revenue', type: 'income', parent_code: '4000', is_system: 1 },
+        { code: '4003', name: 'Service Charge Income', type: 'income', parent_code: '4000', is_system: 1 },
+        { code: '4004', name: 'Other Income', type: 'income', parent_code: '4000', is_system: 1 },
+        { code: '5000', name: 'Expenses', type: 'expense', parent_code: null, is_system: 1 },
+        { code: '5001', name: 'Cost of Goods Sold', type: 'expense', parent_code: '5000', is_system: 1 },
+        { code: '5002', name: 'Electricity', type: 'expense', parent_code: '5000', is_system: 1 },
+        { code: '5003', name: 'Gas', type: 'expense', parent_code: '5000', is_system: 1 },
+        { code: '5004', name: 'Rent', type: 'expense', parent_code: '5000', is_system: 1 },
+        { code: '5005', name: 'Salaries & Wages', type: 'expense', parent_code: '5000', is_system: 1 },
+        { code: '5006', name: 'Maintenance & Repairs', type: 'expense', parent_code: '5000', is_system: 1 },
+        { code: '5007', name: 'Marketing', type: 'expense', parent_code: '5000', is_system: 1 },
+        { code: '5099', name: 'Miscellaneous', type: 'expense', parent_code: '5000', is_system: 1 },
+      ];
+      const ins = db.prepare('INSERT INTO accounts (code, name, type, parent_code, is_system) VALUES (?, ?, ?, ?, ?)');
+      for (const a of defaultAccounts) {
+        ins.run(a.code, a.name, a.type, a.parent_code, a.is_system);
+      }
+      db.exec("COMMIT;");
+      
+      seedPermissions(db);
+
       // Permissions and roles will be dynamically re-seeded by openDatabase() on next app boot,
       // but let's quickly cycle the db handle to ensure everything is initialized immediately
       db.close();
@@ -1088,6 +1142,57 @@ function registerIpcHandlers() {
       throw err;
     }
     return { success: true };
+  });
+
+  ipcMain.handle("system:exportData", () => {
+    try {
+      const data = {
+        __version: 1,
+        __exported_at: new Date().toISOString(),
+        store: {}
+      };
+      
+      for (const table of ALLOWED_TABLES) {
+        data.store[table] = db.prepare(`SELECT * FROM "${table}"`).all();
+      }
+      
+      return data;
+    } catch (err) {
+      console.error("Failed to export data:", err);
+      throw err;
+    }
+  });
+
+  ipcMain.handle("system:importData", (e, data) => {
+    try {
+      if (!data || !data.store) throw new Error("Invalid data format");
+      
+      try { db.exec("ROLLBACK;"); } catch (e) {}
+      db.exec("BEGIN TRANSACTION;");
+      db.exec("PRAGMA defer_foreign_keys = ON;");
+      
+      for (const table of ALLOWED_TABLES) {
+        if (data.store[table] && Array.isArray(data.store[table])) {
+          db.prepare(`DELETE FROM "${table}"`).run();
+          const rows = data.store[table];
+          if (rows.length > 0) {
+            const cols = Object.keys(rows[0]);
+            const placeholders = cols.map(() => '?').join(',');
+            const stmt = db.prepare(`INSERT INTO "${table}" (${cols.map(c => `"${c}"`).join(',')}) VALUES (${placeholders})`);
+            for (const row of rows) {
+              stmt.run(...cols.map(c => row[c]));
+            }
+          }
+        }
+      }
+      
+      db.exec("COMMIT;");
+      return { success: true };
+    } catch (err) {
+      console.error("Failed to import data:", err);
+      try { db.exec("ROLLBACK"); } catch (e) {}
+      throw err;
+    }
   });
 
   // Inventory Custom Actions
