@@ -222,13 +222,15 @@ export default function Settings() {
   const handleClearData = async () => {
     if (await confirm("CRITICAL WARNING: This will permanently delete ALL data including orders, inventory, and settings. This cannot be undone.", "Clear Data")) {
       const typed = await prompt("Type DELETE to confirm:", "Confirm Deletion");
-      if (typed === "DELETE") {
+      if (typed && typed.trim().toUpperCase() === "DELETE") {
         api.clearData().then(async () => {
           await alert("All data cleared. The application will now reload.");
           window.location.reload();
         }).catch(async (err) => {
           await alert("Failed to clear data: " + (err.message || String(err)));
         });
+      } else if (typed !== null) {
+        await alert("Deletion cancelled. You didn't type DELETE.");
       }
     }
   };
@@ -295,7 +297,8 @@ export default function Settings() {
   ];
 
   const kitchenToggles = [
-    { label: "Auto-Print KOT from POS", key: "autoPrintKOT" }
+    { label: "Auto-Print KOT from POS", key: "autoPrintKOT" },
+    { label: "Auto-Print QR Labels from POS", key: "autoPrintLabels" }
   ];
 
   return (

@@ -325,6 +325,10 @@ export default function POS() {
       if (profile?.autoPrintKOT) {
         printKOT({ ...order, table: order.table_id, items });
       }
+      if (profile?.autoPrintLabels) {
+        const { printQRLabels } = await import("../utils/export");
+        await printQRLabels({ ...order, table: order.table_id }, items, profile);
+      }
       resetOrder();
       refreshHeld();
     } catch (err) {

@@ -274,8 +274,7 @@ export default function LoginScreen() {
     // Auto-submit if:
     // 1. Reached 6 digits (max PIN length)
     // 2. Exact match is found
-    // 3. Reached 4 or more digits and is not a prefix of any active user's PIN
-    if (next.length === 6 || exactMatch || (next.length >= 4 && !isPrefix)) {
+    if (next.length === 6 || exactMatch) {
       submitTimeoutRef.current = setTimeout(() => submitPin(next), 200);
     }
   };

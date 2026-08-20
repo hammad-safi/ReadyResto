@@ -7,6 +7,13 @@ const { openDatabase, seedPermissions, ALLOWED_TABLES, MODULES, DEFAULT_PERMISSI
 let mainWindow;
 let db;
 
+process.on('uncaughtException', (err) => {
+  require('fs').writeFileSync('CRASH.log', err.stack);
+});
+process.on('unhandledRejection', (err) => {
+  require('fs').writeFileSync('CRASH_REJECT.log', err.stack);
+});
+
 const isDev = !app.isPackaged;
 const DEVICE_NAME = os.hostname();
 
@@ -31,10 +38,8 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    show: false,
+    show: true,
   });
-
-  mainWindow.once("ready-to-show", () => mainWindow.show());
 
   if (isDev && process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -45,13 +50,21 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  db = openDatabase(app.getPath("userData"));
-  registerIpcHandlers();
-  createWindow();
+  try {
+    db = openDatabase(app.getPath("userData"));
+    registerIpcHandlers();
+    createWindow();
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  } catch (err) {
+    require('fs').writeFileSync('C:\\Users\\Hammad\\Desktop\\RestorentSoft-main\\CRASH_READY.log', err.stack || err.toString());
+    app.quit();
+  }
+}).catch(err => {
+  require('fs').writeFileSync('C:\\Users\\Hammad\\Desktop\\RestorentSoft-main\\CRASH_PROMISE.log', err.stack || err.toString());
+  app.quit();
 });
 
 app.on("window-all-closed", () => {
@@ -1072,6 +1085,24 @@ function registerIpcHandlers() {
   ipcMain.handle("app:getVersion", () => app.getVersion());
   ipcMain.handle("app:getDeviceName", () => DEVICE_NAME);
   ipcMain.handle("system:getPrinters", async (e) => await e.sender.getPrintersAsync());
+
+  ipcMain.handle("system:printHtml", async (e, html, printerName) => {
+    return new Promise((resolve, reject) => {
+      let win = new BrowserWindow({ show: false });
+      win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+      win.webContents.on('did-finish-load', () => {
+        win.webContents.print({ 
+          silent: true, 
+          printBackground: true, 
+          deviceName: printerName && printerName !== 'System Default Dialog' ? printerName : '' 
+        }, (success, errorType) => {
+          win.close();
+          if (!success) reject(new Error(errorType));
+          else resolve(true);
+        });
+      });
+    });
+  });
   ipcMain.handle("system:clearData", () => {
     try {
       try { db.exec("ROLLBACK;"); } catch (e) {} // close any dangling tx

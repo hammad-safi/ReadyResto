@@ -46,7 +46,7 @@
   },
   "build": {
     "appId": "com.dastarkhwan.erp",
-    "productName": "Dastarkhwan ERP Setup",
+    "productName": "Dastarkhwan ERP",
     "directories": {
       "output": "build_out"
     },

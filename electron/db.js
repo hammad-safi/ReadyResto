@@ -513,7 +513,6 @@ function openDatabase(userDataPath) {
       date TEXT,
       created_at TEXT DEFAULT (datetime('now','localtime'))
     );
-
     CREATE TABLE IF NOT EXISTS cashier_shifts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       cashier_id INTEGER,

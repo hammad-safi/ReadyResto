@@ -151,6 +151,7 @@ export default function Inventory() {
   });
 
   // All Ingredients Filters
+  const [promptConfig, setPromptConfig] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [warehouseFilter, setWarehouseFilter] = useState("All");
@@ -175,19 +176,23 @@ export default function Inventory() {
           </select>
           <button
             type="button"
-            onClick={async () => {
-              const newCat = prompt("Enter new Category name:");
-              if (newCat && newCat.trim()) {
-                const trimmed = newCat.trim();
-                if (!categories.includes(trimmed)) {
-                  const updated = [...categories, trimmed];
-                  setCategories(updated);
-                  await api.setSetting("custom_inventory_categories", updated);
-                  setForm(p => ({ ...p, category: trimmed }));
-                } else {
-                  setForm(p => ({ ...p, category: trimmed }));
+            onClick={() => {
+              setPromptConfig({
+                title: "Enter new Category name:",
+                onSubmit: async (newCat) => {
+                  if (newCat && newCat.trim()) {
+                    const trimmed = newCat.trim();
+                    if (!categories.includes(trimmed)) {
+                      const updated = [...categories, trimmed];
+                      setCategories(updated);
+                      await api.setSetting("custom_inventory_categories", updated);
+                      setForm(p => ({ ...p, category: trimmed }));
+                    } else {
+                      setForm(p => ({ ...p, category: trimmed }));
+                    }
+                  }
                 }
-              }
+              });
             }}
             className="flex items-center justify-center p-2 rounded-lg bg-paprika-50 border border-paprika-200 text-paprika-600 hover:bg-paprika-100 transition-colors shrink-0"
             title="Add new Category"
@@ -219,19 +224,23 @@ export default function Inventory() {
           </select>
           <button
             type="button"
-            onClick={async () => {
-              const newLoc = prompt("Enter new Storage Location name:");
-              if (newLoc && newLoc.trim()) {
-                const trimmed = newLoc.trim();
-                if (!warehouses.includes(trimmed)) {
-                  const updated = [...warehouses, trimmed];
-                  setWarehouses(updated);
-                  await api.setSetting("custom_inventory_warehouses", updated);
-                  setForm(p => ({ ...p, warehouse: trimmed }));
-                } else {
-                  setForm(p => ({ ...p, warehouse: trimmed }));
+            onClick={() => {
+              setPromptConfig({
+                title: "Enter new Storage Location name:",
+                onSubmit: async (newLoc) => {
+                  if (newLoc && newLoc.trim()) {
+                    const trimmed = newLoc.trim();
+                    if (!warehouses.includes(trimmed)) {
+                      const updated = [...warehouses, trimmed];
+                      setWarehouses(updated);
+                      await api.setSetting("custom_inventory_warehouses", updated);
+                      setForm(p => ({ ...p, warehouse: trimmed }));
+                    } else {
+                      setForm(p => ({ ...p, warehouse: trimmed }));
+                    }
+                  }
                 }
-              }
+              });
             }}
             className="flex items-center justify-center p-2 rounded-lg bg-paprika-50 border border-paprika-200 text-paprika-600 hover:bg-paprika-100 transition-colors shrink-0"
             title="Add new Location"
@@ -456,6 +465,32 @@ export default function Inventory() {
 
 
 
+
+      {promptConfig && (
+        <div className="fixed inset-0 bg-ink-900/40 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+            <div className="p-5">
+              <h3 className="text-lg font-bold text-ink-900 mb-4">{promptConfig.title}</h3>
+              <input
+                autoFocus
+                className="w-full border border-canvas-200 bg-white rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-paprika-500/30"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    promptConfig.onSubmit(e.target.value);
+                    setPromptConfig(null);
+                  } else if (e.key === "Escape") {
+                    setPromptConfig(null);
+                  }
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 p-4 bg-canvas-50 border-t border-canvas-100">
+              <button onClick={() => setPromptConfig(null)} className="px-4 py-2 text-sm font-medium text-ink-600 hover:bg-canvas-200 rounded-lg">Cancel</button>
+              <button onClick={(e) => { promptConfig.onSubmit(e.target.parentElement.previousSibling.querySelector("input").value); setPromptConfig(null); }} className="px-4 py-2 text-sm font-medium text-white bg-paprika-500 hover:bg-paprika-600 rounded-lg">Submit</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

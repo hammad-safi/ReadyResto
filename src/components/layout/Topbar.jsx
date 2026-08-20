@@ -97,7 +97,7 @@ export default function Topbar({ onMenuClick }) {
       <div className="flex-1 sm:hidden" />
 
       <div className="flex items-center gap-2 ml-auto">
-        <label className="hidden md:flex items-center gap-1.5 text-xs font-medium text-ink-700 border border-canvas-200 rounded-lg px-3 py-2 hover:bg-canvas-100 cursor-pointer">
+        <label className="hidden md:flex items-center gap-1.5 text-xs font-medium text-ink-700 border border-canvas-200 bg-canvas-50 rounded-lg px-3 py-2 hover:bg-canvas-100 cursor-pointer">
           <CalendarDays size={14} />
           <select
             value={filters.range}

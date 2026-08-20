@@ -243,7 +243,7 @@ export default function Kitchen() {
   };
 
   return (
-    <div className="max-w-[1600px] mx-auto px-4 py-4 space-y-5">
+    <div className="w-full px-2 sm:px-4 py-4 space-y-5">
       <PageHeader
         eyebrow="Live Ticket Queue · Auto-refreshing 5s"
         title="Kitchen Display System"
@@ -340,7 +340,25 @@ export default function Kitchen() {
           disabled={selectedTickets.length === 0}
           className="px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-white border border-canvas-200 text-ink-700 hover:bg-canvas-50 shadow-sm"
         >
-          <Printer size={15} /> Print Selected ({selectedTickets.length})
+          <Printer size={15} /> Print KOT ({selectedTickets.length})
+        </button>
+
+        <button
+          onClick={async () => {
+            const ordersToPrint = filteredOrders.filter(o => selectedTickets.includes(o.id)).map(o => ({
+              ...o,
+              items: itemsFor(o.id)
+            }));
+            const { printQRLabels } = await import("../utils/export");
+            for (const order of ordersToPrint) {
+              await printQRLabels(order, order.items, profile);
+            }
+            setSelectedTickets([]);
+          }}
+          disabled={selectedTickets.length === 0}
+          className="px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-paprika-50 border border-paprika-200 text-paprika-700 hover:bg-paprika-100 shadow-sm"
+        >
+          <Printer size={15} /> Print Labels ({selectedTickets.length})
         </button>
       </div>
 
@@ -394,9 +412,6 @@ export default function Kitchen() {
                           <span className="font-mono text-sm font-extrabold text-ink-900 bg-canvas-100 px-2 py-0.5 rounded">
                             #{order.id}
                           </span>
-                          {col.key === "new" && (
-                            <Badge status="new" className="uppercase tracking-wide font-extrabold text-[10px]">NEW</Badge>
-                          )}
                         </div>
                         {getUrgencyBadge(elapsed)}
                       </div>

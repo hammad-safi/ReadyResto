@@ -126,3 +126,58 @@ export function printKOT(ordersInput, selectedItemIds = null) {
     console.error("Failed to print KOT:", err);
   }
 }
+
+export async function printQRLabels(order, items, profile) {
+  try {
+    if (!order || !items || items.length === 0) return;
+    const qrPrinter = profile?.qrPrinter || "";
+
+    const labelsHtml = items.map(item => {
+      // Basic Google Chart API for QR code (works offline if cached, or we can use an SVG generator but we don't have one here)
+      // Since it's offline ERP, we will use a plain text barcode layout or simple text if we can't bundle a library.
+      // Actually, we can use the `https://api.qrserver.com...` just in case, but let's make it look like a nice sticker.
+      return `
+        <div class="label">
+          <div class="header">${profile?.name || 'Restaurant'}</div>
+          <div class="title">${item.name}</div>
+          <div class="meta">
+            Order: #${order.id} | Qty: ${item.qty}
+          </div>
+          ${item.notes ? `<div class="notes">Notes: ${item.notes}</div>` : ''}
+          <div class="qr-placeholder">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`Order:${order.id}|Item:${item.name}`)}" alt="QR" />
+          </div>
+          <div class="footer">${new Date().toLocaleString()}</div>
+        </div>
+      `;
+    }).join("");
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            @page { size: 50mm 50mm; margin: 0; }
+            body { font-family: monospace; margin: 0; padding: 0; width: 50mm; height: 50mm; background: white; color: black; }
+            .label { width: 50mm; height: 50mm; box-sizing: border-box; padding: 2mm; text-align: center; display: flex; flex-direction: column; justify-content: space-between; align-items: center; page-break-after: always; overflow: hidden; }
+            .header { font-size: 10px; font-weight: bold; border-bottom: 1px solid black; width: 100%; padding-bottom: 1mm; margin-bottom: 1mm; }
+            .title { font-size: 12px; font-weight: bold; line-height: 1.2; word-wrap: break-word; max-width: 100%; }
+            .meta { font-size: 9px; margin-top: 1mm; }
+            .notes { font-size: 8px; font-style: italic; margin-top: 1mm; }
+            .qr-placeholder img { width: 25mm; height: 25mm; margin: 1mm auto; display: block; }
+            .footer { font-size: 7px; width: 100%; border-top: 1px solid black; padding-top: 1mm; margin-top: 1mm; }
+          </style>
+        </head>
+        <body>
+          ${labelsHtml}
+        </body>
+      </html>
+    `;
+    
+    // We import api inside the function to avoid circular deps if any
+    const api = (await import('./../api/client')).default;
+    await api.printHtml(html, qrPrinter);
+  } catch (err) {
+    console.error("Failed to print QR Labels:", err);
+  }
+}

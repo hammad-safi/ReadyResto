@@ -614,7 +614,7 @@ export default function Dashboard() {
   const dateLabel = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
   return (
-    <main className="p-8 min-h-screen max-w-[1400px] mx-auto">
+    <main className="p-2 sm:p-4 min-h-screen">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-8">
         <div className="flex items-center gap-4">

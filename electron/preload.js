@@ -91,4 +91,5 @@ contextBridge.exposeInMainWorld("api", {
   clearData: () => ipcRenderer.invoke("system:clearData"),
   exportData: () => ipcRenderer.invoke("system:exportData"),
   importData: (data) => ipcRenderer.invoke("system:importData", data),
+  printHtml: (html, printerName) => ipcRenderer.invoke("system:printHtml", html, printerName),
 });

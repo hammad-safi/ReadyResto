@@ -427,65 +427,54 @@ const memoryApi = {
   },
 
   // Auth
-  loginWithPin: (pin) => {
+  loginWithPin: async (pin) => {
+    if (rawApi.loginWithPin) return await rawApi.loginWithPin(pin);
     const user = store.users.find((u) => u.pin === pin && u.status === "active");
     if (user) {
       const idx = store.users.findIndex((u) => u.id === user.id);
       store.users[idx] = { ...user, last_login: new Date().toLocaleString() };
-      logAudit({
-        user: user.name,
-        module: "Authentication",
-        action: "Logged in via PIN",
-      });
+      logAudit({ user: user.name, module: "Authentication", action: "Logged in via PIN" });
       persistStore();
     }
-    return delay(user ? { success: true, user: store.users.find((u) => u.id === user.id) } : { success: false, message: "Invalid PIN" });
+    return { success: !!user, user: user || null, message: user ? "" : "Invalid PIN" };
   },
 
-  loginWithPassword: (usernameOrEmail, password) => {
+  loginWithPassword: async (usernameOrEmail, password) => {
+    if (rawApi.loginWithPassword) return await rawApi.loginWithPassword(usernameOrEmail, password);
     const user = store.users.find((u) => (u.name === usernameOrEmail || u.email === usernameOrEmail) && u.password === password && u.status === "active");
     if (user) {
       const idx = store.users.findIndex((u) => u.id === user.id);
       store.users[idx] = { ...user, last_login: new Date().toLocaleString() };
-      logAudit({
-        user: user.name,
-        module: "Authentication",
-        action: "Logged in via Password",
-      });
+      logAudit({ user: user.name, module: "Authentication", action: "Logged in via Password" });
       persistStore();
     }
-    return delay(user ? { success: true, user: store.users.find((u) => u.id === user.id) } : { success: false, message: "Invalid username or password" });
+    return { success: !!user, user: user || null, message: user ? "" : "Invalid Credentials" };
   },
 
-  adminOverride: (ownerPassword) => {
+  adminOverride: async (ownerPassword) => {
+    if (rawApi.adminOverride) return await rawApi.adminOverride(ownerPassword);
     const owner = store.users.find((u) => u.role === "Owner" && u.password === ownerPassword);
-    return delay(owner ? { success: true, owner } : { success: false, message: "Incorrect master password" });
+    return { success: !!owner, owner, message: owner ? "" : "Incorrect master password" };
   },
 
-  resetUserPin: (userId, newPin, ownerPassword) => {
+  resetUserPin: async (userId, newPin, ownerPassword) => {
+    if (rawApi.resetUserPin) return await rawApi.resetUserPin(userId, newPin, ownerPassword);
     const owner = store.users.find((u) => u.role === "Owner" && u.password === ownerPassword);
-    if (!owner) return delay({ success: false, message: "Incorrect master password" });
+    if (!owner) return { success: false, message: "Incorrect master password" };
     store.users = store.users.map((u) => (u.id === userId ? { ...u, pin: newPin } : u));
-    logAudit({
-      user: owner.name,
-      module: "Users & Roles",
-      action: `Reset PIN for user #${userId}`,
-    });
+    logAudit({ user: owner.name, module: "Authentication", action: `Reset PIN for User ${userId}` });
     persistStore();
-    return delay({ success: true });
+    return { success: true };
   },
 
-  resetUserPassword: (userId, newPassword, ownerPassword) => {
+  resetUserPassword: async (userId, newPassword, ownerPassword) => {
+    if (rawApi.resetUserPassword) return await rawApi.resetUserPassword(userId, newPassword, ownerPassword);
     const owner = store.users.find((u) => u.role === "Owner" && u.password === ownerPassword);
-    if (!owner) return delay({ success: false, message: "Incorrect master password" });
+    if (!owner) return { success: false, message: "Incorrect master password" };
     store.users = store.users.map((u) => (u.id === userId ? { ...u, password: newPassword } : u));
-    logAudit({
-      user: owner.name,
-      module: "Users & Roles",
-      action: `Reset password for user #${userId}`,
-    });
+    logAudit({ user: owner.name, module: "Authentication", action: `Reset Password for User ${userId}` });
     persistStore();
-    return delay({ success: true });
+    return { success: true };
   },
 
   // Permissions & Roles
@@ -829,6 +818,18 @@ const memoryApi = {
     }
     if (data.settings) {
       window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data.settings));
+    }
+    return delay({ success: true });
+  },
+
+  printHtml: (html, printerName) => {
+    console.log(`Printing to ${printerName}:\n`, html);
+    const w = window.open('', '_blank', 'width=400,height=600');
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      setTimeout(() => { w.print(); w.close(); }, 250);
     }
     return delay({ success: true });
   },
