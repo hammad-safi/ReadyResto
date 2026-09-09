@@ -1,6 +1,6 @@
 import * as mock from "../data/mockData";
 
-const STORAGE_KEY = "dastarkhwan-erp-store-v1";
+const STORAGE_KEY = "dastarkhwan-erp-store-v2";
 const SETTINGS_STORAGE_KEY = "dastarkhwan-erp-settings-v1";
 
 const MODULES = [
