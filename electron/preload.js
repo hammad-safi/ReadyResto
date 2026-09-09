@@ -82,9 +82,16 @@ contextBridge.exposeInMainWorld("api", {
   // Sales returns / adjustments
   processReturn: (orderId, payload, meta) => ipcRenderer.invoke("sales:processReturn", orderId, payload, meta),
 
+// Deals
+  listDeals: () => ipcRenderer.invoke("deals:list"),
+  createDeal: (dealData, groupsData) => ipcRenderer.invoke("deals:create", dealData, groupsData),
+  updateDeal: (dealId, dealData, groupsData) => ipcRenderer.invoke("deals:update", dealId, dealData, groupsData),
+  deleteDeal: (dealId) => ipcRenderer.invoke("deals:delete", dealId),
+
   // Dashboard
   getDashboardSummary: () => ipcRenderer.invoke("dashboard:summary"),
 
+  getStoreVersion: () => ipcRenderer.invoke("app:getStoreVersion"),
   getVersion: () => ipcRenderer.invoke("app:getVersion"),
   getDeviceName: () => ipcRenderer.invoke("app:getDeviceName"),
   getPrinters: () => ipcRenderer.invoke("system:getPrinters"),

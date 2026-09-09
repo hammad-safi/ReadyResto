@@ -32,6 +32,7 @@ const ALLOWED_TABLES = [
   "expiry_batches",
   "accounts",
   "journal_entries",
+  "journal_headers",
   "bank_accounts",
   "customer_payments",
   "cashier_shifts",
@@ -208,6 +209,29 @@ function openDatabase(userDataPath) {
       image TEXT DEFAULT '🍽️'
     );
 
+    CREATE TABLE IF NOT EXISTS deals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      price REAL NOT NULL,
+      status TEXT DEFAULT 'active',
+      image TEXT DEFAULT '🍽️',
+      cost REAL DEFAULT 0,
+      barcode TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS deal_groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      deal_id INTEGER REFERENCES deals(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      qty_required INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS deal_group_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      deal_group_id INTEGER REFERENCES deal_groups(id) ON DELETE CASCADE,
+      menu_item_id INTEGER REFERENCES menu_items(id)
+    );
+
     CREATE TABLE IF NOT EXISTS recipe_ingredients (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       menu_item_id INTEGER REFERENCES menu_items(id) ON DELETE CASCADE,
@@ -349,7 +373,8 @@ function openDatabase(userDataPath) {
       role TEXT,
       phone TEXT,
       status TEXT DEFAULT 'active',
-      joined TEXT
+      joined TEXT,
+      cash_balance REAL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS expenses (
@@ -415,7 +440,9 @@ function openDatabase(userDataPath) {
       name TEXT,
       qty INTEGER,
       price REAL,
-      notes TEXT
+      notes TEXT,
+      is_deal BOOLEAN DEFAULT 0,
+      parent_id INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS kitchen_tickets (
@@ -474,6 +501,21 @@ function openDatabase(userDataPath) {
       is_system INTEGER DEFAULT 0,
       is_active INTEGER DEFAULT 1,
       description TEXT,
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS journal_headers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entry_number TEXT UNIQUE,
+      date TEXT NOT NULL,
+      reference_number TEXT,
+      description TEXT,
+      branch TEXT,
+      currency TEXT,
+      exchange_rate REAL DEFAULT 1.0,
+      attachment_path TEXT,
+      status TEXT DEFAULT 'Draft',
+      created_by TEXT,
       created_at TEXT DEFAULT (datetime('now','localtime'))
     );
 
@@ -577,8 +619,34 @@ function migrate(db) {
     try { db.exec(`ALTER TABLE users ADD COLUMN ${col}`); } catch { /* exists */ }
   }
 
+  try { db.exec(`ALTER TABLE employees ADD COLUMN cash_balance REAL DEFAULT 0`); } catch { /* exists */ }
+
+  try {
+    db.exec(`INSERT OR IGNORE INTO accounts (code, name, type, parent_code, is_system) VALUES 
+      ('1006', 'Cash with Drivers', 'asset', '1000', 1),
+      ('1007', 'Third-Party Receivables', 'asset', '1000', 1)`);
+  } catch {}
+
   // Audit log device column
   try { db.exec("ALTER TABLE audit_log ADD COLUMN ip_device TEXT"); } catch { /* exists */ }
+
+  // Order Items new columns
+  const newOrderItemColumns = [
+    "is_deal BOOLEAN DEFAULT 0",
+    "parent_id INTEGER"
+  ];
+  for (const col of newOrderItemColumns) {
+    try { db.exec(`ALTER TABLE order_items ADD COLUMN ${col}`); } catch { /* exists */ }
+  }
+
+  // Deals new columns
+  const newDealsColumns = [
+    "cost REAL DEFAULT 0",
+    "barcode TEXT"
+  ];
+  for (const col of newDealsColumns) {
+    try { db.exec(`ALTER TABLE deals ADD COLUMN ${col}`); } catch { /* exists */ }
+  }
 
   // Purchase Order new columns
   const newPOColumns = [
@@ -629,6 +697,7 @@ function migrate(db) {
   }
 
   try { db.exec("ALTER TABLE menu_items ADD COLUMN tax_rate REAL DEFAULT 16"); } catch { /* exists */ }
+  try { db.exec("ALTER TABLE menu_items ADD COLUMN barcode TEXT"); } catch { /* exists */ }
   try { db.exec("ALTER TABLE orders ADD COLUMN shift_id INTEGER"); } catch { /* exists */ }
   try { db.exec("ALTER TABLE orders ADD COLUMN customer_id INTEGER"); } catch { /* exists */ }
   try { db.exec("ALTER TABLE orders ADD COLUMN kitchen_status TEXT DEFAULT 'new'"); } catch { /* exists */ }
@@ -636,6 +705,22 @@ function migrate(db) {
   try { db.exec("ALTER TABLE supplier_payments ADD COLUMN bank_account_id INTEGER"); } catch { /* exists */ }
   try { db.exec("ALTER TABLE customers ADD COLUMN total_billed REAL DEFAULT 0"); } catch { /* exists */ }
   try { db.exec("ALTER TABLE customers ADD COLUMN total_paid REAL DEFAULT 0"); } catch { /* exists */ }
+  try { db.exec("ALTER TABLE deals ADD COLUMN barcode TEXT"); } catch { /* exists */ }
+  try { db.exec("ALTER TABLE deals ADD COLUMN cost REAL DEFAULT 0"); } catch { /* exists */ }
+  
+  // Accounts new columns
+  const newAccountColumns = [
+    "normal_balance TEXT",
+    "opening_balance REAL DEFAULT 0",
+    "opening_balance_date TEXT",
+    "currency TEXT",
+    "branch TEXT"
+  ];
+  for (const col of newAccountColumns) {
+    try { db.exec(`ALTER TABLE accounts ADD COLUMN ${col}`); } catch { /* exists */ }
+  }
+  
+  try { db.exec("ALTER TABLE journal_entries ADD COLUMN header_id INTEGER"); } catch { /* exists */ }
 
   // Ensure role_permissions and custom_roles tables exist (idempotent via CREATE IF NOT EXISTS above)
   // Seed default permissions if none exist yet
@@ -848,6 +933,8 @@ function seed(db) {
     { code: '1003', name: 'Accounts Receivable', type: 'asset', parent_code: '1000', is_system: 1 },
     { code: '1004', name: 'Inventory', type: 'asset', parent_code: '1000', is_system: 1 },
     { code: '1005', name: 'Prepaid Expenses', type: 'asset', parent_code: '1000', is_system: 1 },
+    { code: '1006', name: 'Cash with Drivers', type: 'asset', parent_code: '1000', is_system: 1 },
+    { code: '1007', name: 'Third-Party Receivables', type: 'asset', parent_code: '1000', is_system: 1 },
     // Liabilities
     { code: '2000', name: 'Liabilities', type: 'liability', parent_code: null, is_system: 1 },
     { code: '2001', name: 'Accounts Payable', type: 'liability', parent_code: '2000', is_system: 1 },

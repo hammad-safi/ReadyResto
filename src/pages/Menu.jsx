@@ -101,9 +101,9 @@ export default function Menu() {
   const openEdit = (item) => {
     setForm(item);
     const lines = recipes.filter(r => r.menu_item_id === item.id).map(r => {
-      const inv = inventory.find(i => i.id === r.inventory_item_id);
+      const inv = inventory.find(i => i.id === r.ingredient_id);
       return {
-        inventory_item_id: r.inventory_item_id,
+        ingredient_id: r.ingredient_id,
         name: inv?.name || "Unknown",
         unit: inv?.unit || "",
         cost: inv?.cost || 0,
@@ -170,11 +170,11 @@ export default function Menu() {
 
   const addInvItem = (item) => {
     setRecipeLines(prev => {
-      const existing = prev.find(it => it.inventory_item_id === item.id);
+      const existing = prev.find(it => it.ingredient_id === item.id);
       if (existing) {
-        return prev.map(it => it.inventory_item_id === item.id ? { ...it, qty: Number(it.qty) + 1 } : it);
+        return prev.map(it => it.ingredient_id === item.id ? { ...it, qty: Number(it.qty) + 1 } : it);
       }
-      return [...prev, { inventory_item_id: item.id, name: item.name, unit: item.unit, cost: item.cost, qty: 1 }];
+      return [...prev, { ingredient_id: item.id, name: item.name, unit: item.unit, cost: item.cost, qty: 1 }];
     });
   };
 
@@ -206,7 +206,7 @@ export default function Menu() {
     for (const l of recipeLines) {
       await api.create("recipe_ingredients", {
         menu_item_id: savedItem.id,
-        inventory_item_id: l.inventory_item_id,
+        ingredient_id: l.ingredient_id,
         qty: l.qty
       });
     }
@@ -252,26 +252,11 @@ export default function Menu() {
         </div>
         
         <div className="flex items-center gap-2">
-          <div className="relative hidden sm:block">
+          <div className="relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" />
             <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search menu..."
               className="w-48 pl-7 pr-3 py-1.5 text-xs border border-canvas-200 rounded-lg outline-none focus:ring-2 focus:ring-paprika-500/30" />
           </div>
-          <button
-            onClick={() => setFiltersOpen((o) => !o)}
-            className={`relative flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
-              filtersOpen || activeFilterCount > 0
-                ? "border-paprika-400 bg-paprika-50 text-paprika-700"
-                : "border-canvas-200 text-ink-600 hover:bg-canvas-100"
-            }`}
-          >
-            <Filter size={13} /> Filters
-            {activeFilterCount > 0 && (
-              <span className="h-4 min-w-4 px-1 rounded-full bg-paprika-500 text-white text-[10px] font-bold flex items-center justify-center">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
           {activeFilterCount > 0 && (
             <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-ink-400 hover:text-paprika-600 transition-colors">
               <RotateCcw size={11} /> Clear
@@ -280,35 +265,7 @@ export default function Menu() {
         </div>
       </div>
 
-      {filtersOpen && (
-        <div className="mb-5 p-3.5 rounded-xl border border-canvas-200 bg-canvas-50 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="sm:hidden relative">
-             <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500 mb-1">Search</p>
-             <div className="relative">
-               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-               <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search menu..."
-                 className="w-full border border-canvas-200 bg-white rounded-lg pl-7 pr-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30" />
-             </div>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500 mb-1">Status</p>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full border border-canvas-200 bg-white rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30">
-              <option value="All">All statuses</option>
-              <option value="available">Available</option>
-              <option value="out_of_stock">Out of stock</option>
-            </select>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500 mb-1">Station</p>
-            <select value={stationFilter} onChange={(e) => setStationFilter(e.target.value)}
-              className="w-full border border-canvas-200 bg-white rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-paprika-500/30">
-              <option value="All">All stations</option>
-              {STATION_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-        </div>
-      )}
+
 
       {loading ? (
         <div className="text-sm text-ink-500 py-10 text-center">Loading…</div>

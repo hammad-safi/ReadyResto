@@ -1,5 +1,11 @@
 import DatePicker from "../components/ui/DatePicker";
 import { useEffect, useMemo, useState } from "react";
+import ChartOfAccountsTable from "../components/accounting/ChartOfAccountsTable";
+import AddAccountModal from "../components/accounting/AddAccountModal";
+import JournalEntriesList from "../components/accounting/JournalEntriesList";
+import JournalEntryForm from "../components/accounting/JournalEntryForm";
+import GeneralLedger from "../components/accounting/GeneralLedger";
+import FinancialStatements from "../components/accounting/FinancialStatements";
 import PageHeader from "../components/ui/PageHeader";
 import { useDialog } from "../context/DialogContext";
 import StatCard from "../components/ui/StatCard";
@@ -410,361 +416,56 @@ function ChartOfAccounts({ accounts, onRefresh }) {
   );
 }
 
-function JournalEntries({ journal, accounts, onRefresh }) {
-  const { alert, confirm } = useDialog();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  
-  // New Entry State
-  const [entryDate, setEntryDate] = useState(new Date().toLocaleDateString('en-CA'));
-  const [entryDesc, setEntryDesc] = useState("");
-  const [rows, setRows] = useState([
-    { id: 1, account_id: "", debit: "", credit: "" },
-    { id: 2, account_id: "", debit: "", credit: "" }
-  ]);
+function JournalEntries({ journals = [], accounts = [], onRefresh, user }) {
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [isCreating, setIsCreating] = useState(false);
 
-  const filteredJournal = useMemo(() => {
-    return journal
-      .filter(j => 
-        (j.account_name || "").toLowerCase().includes(search.toLowerCase()) || 
-        (j.reference || "").toLowerCase().includes(search.toLowerCase()) ||
-        (j.description || "").toLowerCase().includes(search.toLowerCase())
-      )
-      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-  }, [journal, search]);
-
-  const totalDebit = rows.reduce((sum, r) => sum + Number(r.debit || 0), 0);
-  const totalCredit = rows.reduce((sum, r) => sum + Number(r.credit || 0), 0);
-  const isBalanced = totalDebit === totalCredit && totalDebit > 0;
-
-  const handleAddRow = () => {
-    setRows([...rows, { id: Date.now(), account_id: "", debit: "", credit: "" }]);
-  };
-
-  const handleRowChange = (id, field, value) => {
-    setRows(rows.map(r => r.id === id ? { ...r, [field]: value } : r));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!isBalanced) return await alert("Total Debit must equal Total Credit.");
-    
-    const validRows = rows.filter(r => r.account_id && (Number(r.debit) > 0 || Number(r.credit) > 0));
-    if (validRows.length < 2) return await alert("At least two valid rows are required.");
-
-    const ref = `JRN-${Date.now().toString().slice(-6)}`;
-    const promises = validRows.map(r => {
-      const acc = accounts.find(a => String(a.id) === String(r.account_id));
-      return api.create("journal_entries", {
-        date: entryDate,
-        reference_type: 'Manual',
-        reference_id: ref,
-        account_code: acc?.code || "",
-        account_name: acc?.name || "",
-        debit: Number(r.debit || 0),
-        credit: Number(r.credit || 0),
-        description: entryDesc
-      });
-    });
-
-    await Promise.all(promises);
-    setIsModalOpen(false);
-    onRefresh();
-    // reset
-    setEntryDesc("");
-    setRows([{ id: 1, account_id: "", debit: "", credit: "" }, { id: 2, account_id: "", debit: "", credit: "" }]);
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div className="relative w-64">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
-          <input
-            type="text"
-            placeholder="Search entries..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-canvas-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-paprika-500/20 focus:border-paprika-400"
-          />
-        </div>
-        <Button variant="primary" size="sm" onClick={() => setIsModalOpen(true)}>
-          <Plus size={16} /> New Manual Entry
-        </Button>
-      </div>
-
-      <div className="bg-white border border-canvas-200 rounded-xl overflow-hidden shadow-soft">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-canvas-50 text-ink-500 text-xs uppercase tracking-wider">
-              <th className="px-4 py-3 font-medium">Date</th>
-              <th className="px-4 py-3 font-medium">Reference</th>
-              <th className="px-4 py-3 font-medium">Account</th>
-              <th className="px-4 py-3 font-medium text-right">Debit</th>
-              <th className="px-4 py-3 font-medium text-right">Credit</th>
-              <th className="px-4 py-3 font-medium">Description</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-canvas-100">
-            {filteredJournal.map(j => (
-              <tr key={j.id} className="hover:bg-canvas-50/50 transition-colors">
-                <td className="px-4 py-3 text-sm text-ink-600">{j.date}</td>
-                <td className="px-4 py-3 text-sm font-mono text-ink-900">{j.reference || (j.reference_type ? `${j.reference_type} #${j.reference_id}` : '—')}</td>
-                <td className="px-4 py-3 text-sm text-ink-900 font-medium">
-                  <span className="text-ink-500 font-mono text-xs mr-2">{j.account_code}</span>
-                  {j.account_name}
-                </td>
-                <td className="px-4 py-3 text-sm font-mono text-green-600 text-right">
-                  {Number(j.debit) > 0 ? formatCurrency(j.debit) : "-"}
-                </td>
-                <td className="px-4 py-3 text-sm font-mono text-red-600 text-right">
-                  {Number(j.credit) > 0 ? formatCurrency(j.credit) : "-"}
-                </td>
-                <td className="px-4 py-3 text-sm text-ink-600 truncate max-w-xs">{j.description}</td>
-              </tr>
-            ))}
-            {filteredJournal.length === 0 && (
-              <tr>
-                <td colSpan="6" className="px-4 py-8 text-center text-ink-500 text-sm">
-                  No journal entries found.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {isModalOpen && (
-        <Modal title="New Journal Entry" onClose={() => setIsModalOpen(false)}>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-ink-700 mb-1">Date</label>
-                <DatePicker   required value={entryDate} onChange={e => setEntryDate(e.target.value)} className="w-full border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-paprika-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-ink-700 mb-1">Description</label>
-                <input required value={entryDesc} onChange={e => setEntryDesc(e.target.value)} className="w-full border border-canvas-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-paprika-500" placeholder="Reason for entry..." />
-              </div>
-            </div>
-
-            <div className="mt-4 border border-canvas-200 rounded-lg overflow-hidden">
-              <table className="w-full text-left">
-                <thead className="bg-canvas-50 border-b border-canvas-200">
-                  <tr>
-                    <th className="px-3 py-2 text-xs font-medium text-ink-600 w-1/2">Account</th>
-                    <th className="px-3 py-2 text-xs font-medium text-ink-600 w-1/4">Debit</th>
-                    <th className="px-3 py-2 text-xs font-medium text-ink-600 w-1/4">Credit</th>
-                    <th className="px-3 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-canvas-100">
-                  {rows.map((r, i) => (
-                    <tr key={r.id}>
-                      <td className="px-2 py-2">
-                        <SearchableSelect 
-                          value={r.account_id}
-                          onChange={(val) => handleRowChange(r.id, "account_id", val)}
-                          options={accounts.filter(a => a.is_active !== 0)}
-                          placeholder="Select Account"
-                        />
-                      </td>
-                      <td className="px-2 py-2">
-                        <input type="number" min="0" step="0.01" value={r.debit} onChange={(e) => { handleRowChange(r.id, "debit", e.target.value); handleRowChange(r.id, "credit", ""); }} className="w-full border border-canvas-200 rounded-md px-2 py-1.5 text-sm outline-none focus:border-paprika-500 text-right" placeholder="0.00" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <input type="number" min="0" step="0.01" value={r.credit} onChange={(e) => { handleRowChange(r.id, "credit", e.target.value); handleRowChange(r.id, "debit", ""); }} className="w-full border border-canvas-200 rounded-md px-2 py-1.5 text-sm outline-none focus:border-paprika-500 text-right" placeholder="0.00" />
-                      </td>
-                      <td className="px-2 py-2 text-center">
-                        <button type="button" onClick={() => setRows(rows.filter(row => row.id !== r.id))} className="text-ink-400 hover:text-red-500 transition-colors">
-                          <X size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-canvas-50 border-t border-canvas-200">
-                  <tr>
-                    <td className="px-3 py-2">
-                      <button type="button" onClick={handleAddRow} className="text-sm text-paprika-600 font-medium flex items-center gap-1 hover:text-paprika-700">
-                        <PlusCircle size={14} /> Add Line
-                      </button>
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono font-medium text-ink-900">{formatCurrency(totalDebit)}</td>
-                    <td className="px-3 py-2 text-right font-mono font-medium text-ink-900">{formatCurrency(totalCredit)}</td>
-                    <td></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-            
-            <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${isBalanced ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-              {isBalanced ? <CheckCircle2 size={16} /> : <BarChart3 size={16} />}
-              {isBalanced ? "Entry is balanced and ready to post." : `Difference: ${formatCurrency(Math.abs(totalDebit - totalCredit))}`}
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-canvas-100">
-              <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-              <Button type="submit" variant="primary" disabled={!isBalanced}>Post Entry</Button>
-            </div>
-          </form>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-function GeneralLedger({ journal, accounts }) {
-  const [selectedAccountId, setSelectedAccountId] = useState("");
-  const [dateRange, setDateRange] = useState("This Month"); // simplified
-
-  const ledgerData = useMemo(() => {
-    if (!selectedAccountId) return [];
-    const acc = accounts.find(a => String(a.id) === String(selectedAccountId));
-    if (!acc) return [];
-    
-    let entries = journal.filter(j => j.account_code === acc.code).sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
-    
-    let balance = 0;
-    const isNormalDebit = acc.type?.toLowerCase() === "asset" || acc.type?.toLowerCase() === "expense";
-
-    return entries.map(j => {
-      const d = Number(j.debit || 0);
-      const c = Number(j.credit || 0);
-      if (isNormalDebit) {
-        balance += (d - c);
+  const handleSave = async (data) => {
+    try {
+      const payload = { ...data, created_by: user?.name };
+      if (payload.id) {
+        await api.updateJournal(payload.id, payload);
       } else {
-        balance += (c - d);
+        await api.createJournal(payload);
       }
-      return { ...j, runningBalance: balance };
-    });
-  }, [journal, accounts, selectedAccountId]);
+      setIsCreating(false);
+      setEditingEntry(null);
+      onRefresh();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleReverse = async (id) => {
+    if (!window.confirm("Are you sure you want to reverse this posted entry?")) return;
+    try {
+      await api.reverseJournal(id, user?.name);
+      setIsCreating(false);
+      setEditingEntry(null);
+      onRefresh();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  if (isCreating || editingEntry) {
+    return (
+      <JournalEntryForm 
+        accounts={accounts} 
+        initialData={editingEntry}
+        onSave={handleSave}
+        onCancel={() => { setIsCreating(false); setEditingEntry(null); }}
+        onReverse={handleReverse}
+      />
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-4 items-end bg-canvas-50 p-4 rounded-xl border border-canvas-200">
-        <div className="w-64">
-          <label className="block text-xs font-medium text-ink-700 mb-1">Select Account</label>
-          <SearchableSelect 
-            value={selectedAccountId} 
-            onChange={setSelectedAccountId} 
-            options={accounts.filter(a => a.is_active !== 0)} 
-            placeholder="Choose an account..."
-          />
-        </div>
-        <Button variant="secondary" size="sm" className="h-[38px]">
-          <Download size={16} /> Export
-        </Button>
-      </div>
-
-      {selectedAccountId ? (
-        <div className="bg-white border border-canvas-200 rounded-xl overflow-hidden shadow-soft">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-canvas-50 text-ink-500 text-xs uppercase tracking-wider">
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Reference</th>
-                <th className="px-4 py-3 font-medium">Description</th>
-                <th className="px-4 py-3 font-medium text-right">Debit</th>
-                <th className="px-4 py-3 font-medium text-right">Credit</th>
-                <th className="px-4 py-3 font-medium text-right">Balance</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-canvas-100">
-              {ledgerData.map((row, i) => (
-                <tr key={row.id || i} className="hover:bg-canvas-50/50 transition-colors">
-                  <td className="px-4 py-3 text-sm text-ink-600">{row.date}</td>
-                  <td className="px-4 py-3 text-sm font-mono text-ink-900">{row.reference}</td>
-                  <td className="px-4 py-3 text-sm text-ink-800">{row.description}</td>
-                  <td className="px-4 py-3 text-sm font-mono text-green-600 text-right">{Number(row.debit) > 0 ? formatCurrency(row.debit) : "-"}</td>
-                  <td className="px-4 py-3 text-sm font-mono text-red-600 text-right">{Number(row.credit) > 0 ? formatCurrency(row.credit) : "-"}</td>
-                  <td className="px-4 py-3 text-sm font-mono font-medium text-ink-900 text-right">{formatCurrency(row.runningBalance)}</td>
-                </tr>
-              ))}
-              {ledgerData.length === 0 && (
-                <tr>
-                  <td colSpan="6" className="px-4 py-12 text-center text-ink-400 text-sm">
-                    No transactions found for this account.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center p-12 bg-white border border-canvas-200 rounded-xl shadow-soft text-ink-400">
-          <BookOpen size={48} className="mb-4 opacity-50 text-paprika-500" />
-          <p>Please select an account to view its ledger.</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FinancialStatements({ journal, accounts }) {
-  const [subTab, setSubTab] = useState("P&L");
-
-  const plData = useMemo(() => {
-    // simplified for visual
-    const revenue = journal.filter(j => accounts.find(a => a.code === j.account_code)?.type?.toLowerCase() === "income")
-                           .reduce((s, j) => s + (Number(j.credit || 0) - Number(j.debit || 0)), 0);
-    const cogs = journal.filter(j => j.account_code === "5001")
-                        .reduce((s, j) => s + (Number(j.debit || 0) - Number(j.credit || 0)), 0);
-    const expenses = journal.filter(j => accounts.find(a => a.code === j.account_code)?.type?.toLowerCase() === "expense" && j.account_code !== "5001")
-                            .reduce((s, j) => s + (Number(j.debit || 0) - Number(j.credit || 0)), 0);
-    
-    return { revenue, cogs, gross: revenue - cogs, expenses, net: (revenue - cogs) - expenses };
-  }, [journal, accounts]);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex gap-2 mb-4">
-        {["P&L", "Balance Sheet", "Trial Balance"].map(t => (
-          <button
-            key={t}
-            onClick={() => setSubTab(t)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${subTab === t ? "bg-paprika-50 text-paprika-700" : "bg-white text-ink-600 border border-canvas-200 hover:bg-canvas-50"}`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {subTab === "P&L" && (
-        <div className="max-w-2xl bg-white border border-canvas-200 rounded-xl shadow-soft p-6">
-          <h3 className="text-lg font-bold text-ink-900 mb-6 text-center">Profit & Loss Statement</h3>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center text-sm">
-              <span className="font-semibold text-ink-900">Total Sales Revenue</span>
-              <span className="font-mono">{formatCurrency(plData.revenue)}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm text-ink-600 pl-4 border-l-2 border-canvas-200">
-              <span>Less: Cost of Goods Sold</span>
-              <span className="font-mono text-paprika-600">({formatCurrency(plData.cogs)})</span>
-            </div>
-            <div className="flex justify-between items-center text-sm font-bold border-y border-canvas-200 py-3 bg-canvas-50/50 px-2 rounded">
-              <span>Gross Profit</span>
-              <span className="font-mono">{formatCurrency(plData.gross)}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm text-ink-600 pl-4 border-l-2 border-canvas-200">
-              <span>Less: Operating Expenses</span>
-              <span className="font-mono text-paprika-600">({formatCurrency(plData.expenses)})</span>
-            </div>
-            <div className="flex justify-between items-center text-base font-bold border-t-2 border-ink-900 pt-3 text-ink-900 px-2">
-              <span>Net Profit</span>
-              <span className="font-mono text-green-700">{formatCurrency(plData.net)}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {subTab !== "P&L" && (
-        <div className="flex flex-col items-center justify-center p-12 bg-white border border-canvas-200 rounded-xl shadow-soft text-ink-400">
-          <Scale size={48} className="mb-4 opacity-50" />
-          <p>More detailed reports like Balance Sheet and Trial Balance will render here based on full journal data.</p>
-        </div>
-      )}
-    </div>
+    <JournalEntriesList 
+      journals={journals} 
+      onNew={() => setIsCreating(true)} 
+      onEdit={(j) => setEditingEntry(j)} 
+    />
   );
 }
 
@@ -851,16 +552,19 @@ export default function Accounting() {
   const { getData, cacheTick } = useDataCache();
   const { filters } = useDashboardFilters();
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState(TABS[0]);
+  const [selectedLedgerAccountId, setSelectedLedgerAccountId] = useState("");
   const [data, setData] = useState({
-    accounts: [], journal: [], orders: [], expenses: [], customers: [], suppliers: [], banks: [], orderItems: [], menuItems: []
+    accounts: [], journal: [], journal_headers: [], orders: [], expenses: [], customers: [], suppliers: [], banks: [], orderItems: [], menuItems: []
   });
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [accounts, journal, orders, expenses, customers, suppliers, banks, orderItems, menuItems] = await Promise.all([
+      const [accounts, journal, headers, orders, expenses, customers, suppliers, banks, orderItems, menuItems] = await Promise.all([
         getData("accounts"),
         getData("journal_entries"),
+        getData("journal_headers"),
         getData("orders"),
         getData("expenses"),
         getData("customers"),
@@ -879,9 +583,15 @@ export default function Accounting() {
         finalAccounts = await getData("accounts");
       }
 
+      const stitchedHeaders = (headers || []).map(h => ({
+        ...h,
+        lines: (journal || []).filter(j => j.header_id === h.id)
+      }));
+
       setData({ 
         accounts: finalAccounts || [], 
         journal: journal || [], 
+        journal_headers: stitchedHeaders,
         orders: orders || [], 
         expenses: expenses || [], 
         customers: customers || [], 
@@ -936,7 +646,8 @@ export default function Accounting() {
 
     return {
       ...data,
-      journal: data.journal.filter(j => filterByDate(j.date || j.created_at)),
+      journal: (data.journal || []).filter(j => filterByDate(j.date || j.created_at)),
+      journal_headers: (data.journal_headers || []).filter(j => filterByDate(j.date || j.created_at)),
       orders: data.orders.filter(o => filterByDate(o.created_at || o.time)),
       expenses: data.expenses.filter(e => filterByDate(e.date)),
     };
@@ -951,13 +662,30 @@ export default function Accounting() {
         actions={<Button variant="primary" onClick={loadData}><RefreshCw size={16} /> Sync</Button>}
       />
 
+      <div className="flex overflow-x-auto hide-scrollbar gap-2 mb-6 border-b border-canvas-200">
+        {TABS.map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`whitespace-nowrap px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab ? "border-paprika-500 text-paprika-600" : "border-transparent text-ink-500 hover:text-ink-900 hover:border-canvas-300"}`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="flex justify-center items-center py-20 text-ink-400">
           <RefreshCw className="animate-spin mr-2" size={24} /> Loading accounting data...
         </div>
       ) : (
         <div className="animate-fade-in">
-          <DashboardOverview {...filteredData} fullJournal={data.journal} />
+          {activeTab === "Dashboard Overview" && <DashboardOverview {...filteredData} fullJournal={data.journal} />}
+          {activeTab === "Chart of Accounts" && <ChartOfAccountsTable accounts={data.accounts} onRefresh={loadData} confirm={confirm} fullJournal={data.journal} onViewLedger={(id) => { setSelectedLedgerAccountId(id); setActiveTab("General Ledger"); }} />}
+          {activeTab === "Journal Entries" && <JournalEntries journals={filteredData.journal_headers} accounts={data.accounts} onRefresh={loadData} user={user} />}
+          {activeTab === "General Ledger" && <GeneralLedger journal={data.journal} accounts={data.accounts} selectedAccountId={selectedLedgerAccountId} setSelectedAccountId={setSelectedLedgerAccountId} />}
+          {activeTab === "Financial Statements" && <FinancialStatements journal={data.journal} accounts={data.accounts} />}
+          {activeTab === "Bank Accounts" && <BankAccounts banks={data.banks} onRefresh={loadData} />}
         </div>
       )}
     </div>

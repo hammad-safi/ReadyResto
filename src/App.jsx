@@ -18,6 +18,7 @@ const Tables = lazy(() => import("./pages/Tables"));
 const Orders = lazy(() => import("./pages/Orders"));
 const Sales = lazy(() => import("./pages/Sales"));
 const Menu = lazy(() => import("./pages/Menu"));
+const Deals = lazy(() => import("./pages/Deals"));
 const Inventory = lazy(() => import("./pages/Inventory"));
 const Suppliers = lazy(() => import("./pages/Suppliers"));
 const Purchases = lazy(() => import("./pages/Purchases"));
@@ -81,6 +82,7 @@ function Root() {
             <Route path="/orders" element={<Protected module="Order Management"><Orders /></Protected>} />
             <Route path="/sales" element={<Protected module="Sales"><Sales /></Protected>} />
             <Route path="/menu" element={<Protected module="Menu Management"><Menu /></Protected>} />
+              <Route path="/deals" element={<Protected module="Menu Management"><Deals /></Protected>} />
             <Route path="/inventory" element={<Protected module="Inventory"><Inventory /></Protected>} />
             <Route path="/suppliers" element={<Protected module="Suppliers"><Suppliers /></Protected>} />
             <Route path="/purchases" element={<Protected module="Purchases"><Purchases /></Protected>} />

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Printer, X } from "lucide-react";
 import Button from "../ui/Button";
 import Barcode from "react-barcode";
@@ -9,6 +10,17 @@ export default function Receipt({ order, items, profile, onClose, refundLines = 
   if (!order) return null;
 
   const handlePrint = () => window.print();
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handlePrint();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Create simple payload for QR Code
   const qrPayload = `Inv: ${order.id}\nAmt: Rs. ${order.total}\nDate: ${order.time}`;
@@ -58,13 +70,59 @@ export default function Receipt({ order, items, profile, onClose, refundLines = 
           </div>
 
           <div className="border-t border-dashed border-ink-300 my-1.5 print:border-black" />
-          <div className="space-y-0.5">
-            {items.map((it) => (
-              <div key={it.id || it.menu_item_id} className="flex justify-between">
-                <span className="flex-1 pr-2 truncate">{it.qty} × {it.name}</span>
-                <span>Rs. {(it.qty * it.price).toLocaleString()}</span>
-              </div>
-            ))}
+          <div className="space-y-1">
+            {(() => {
+              const mainItems = items.filter(it => true);
+              const regularItems = mainItems.filter(it => it.is_deal !== 1);
+              const dealItems = mainItems.filter(it => it.is_deal === 1);
+
+              return (
+                <>
+                  {/* Regular items */}
+                  {regularItems.map((it) => (
+                    <div key={it.id || it.menu_item_id} className="flex flex-col">
+                      <div className="flex justify-between">
+                        <span className="flex-1 pr-2 truncate">
+                          {it.qty} × {it.name}
+                          {it.station && <span className="text-[8px] text-ink-400 print:text-gray-500 ml-1">({it.station})</span>}
+                        </span>
+                        <span>Rs. {(it.qty * it.price).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Deal items */}
+                  {dealItems.length > 0 && (
+                    <>
+                      <div className="border-t border-dotted border-ink-200 my-1 print:border-gray-400" />
+                      {dealItems.map((it) => {
+                        const subs = it.sub_items || [];
+                        return (
+                          <div key={it.id || it.menu_item_id} className="flex flex-col">
+                            <div className="flex justify-between">
+                              <span className="flex-1 pr-2 truncate font-bold">
+                                <span className="text-[8px] bg-ink-800 text-white px-1 py-px rounded mr-1 print:bg-black print:text-white">DEAL</span>
+                                {it.qty} × {it.name}
+                              </span>
+                              <span className="font-bold">Rs. {(it.qty * it.price).toLocaleString()}</span>
+                            </div>
+                            {subs.length > 0 && (
+                              <div className="pl-3 mt-0.5 mb-1 border-l border-dashed border-ink-200 ml-1 print:border-gray-400">
+                                {subs.map((sub, idx) => (
+                                  <div key={idx} className="text-[9px] text-ink-500 print:text-black leading-relaxed">
+                                    {idx < subs.length - 1 ? '├─' : '└─'} {sub.qty || 1} × {sub.name}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </div>
 
           <div className="border-t border-dashed border-ink-300 my-1.5 print:border-black" />

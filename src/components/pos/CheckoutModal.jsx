@@ -30,13 +30,13 @@ export default function CheckoutModal({
   const [selectedCustomer, setSelectedCustomer] = useState(initialCustomer);
   const [customerSearch, setCustomerSearch] = useState(initialCustomer ? initialCustomer.name : "");
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
-  const [amountPayingNow, setAmountPayingNow] = useState("");
+  const [amountPayingNow, setAmountPayingNow] = useState(total.toString());
   
   // Payment states
   const [payMethod, setPayMethod] = useState("Cash");
   const [splitMode, setSplitMode] = useState(false);
   const [splits, setSplits] = useState([{ method: "Cash", amount: "" }]);
-  const [tendered, setTendered] = useState("");
+  const [tendered, setTendered] = useState(total.toString());
 
   // Add-new-customer form state
   const [addCustMode, setAddCustMode] = useState(false);
@@ -59,11 +59,11 @@ export default function CheckoutModal({
       loadCustomers();
       setSelectedCustomer(initialCustomer);
       setCustomerSearch(initialCustomer ? initialCustomer.name : "");
-      setAmountPayingNow("");
+      setAmountPayingNow(total.toString());
       setPayMethod("Cash");
       setSplitMode(false);
       setSplits([{ method: "Cash", amount: "" }]);
-      setTendered("");
+      setTendered(total.toString());
       setAddCustMode(false);
     }
   }, [open, initialCustomer]);
@@ -348,7 +348,7 @@ export default function CheckoutModal({
                     onClick={() => {
                       setSelectedCustomer(null);
                       setCustomerSearch("");
-                      setAmountPayingNow("");
+                      setAmountPayingNow(total.toString());
                     }}
                     aria-label="Remove customer"
                     className="text-ink-400 hover:text-paprika-600 transition-colors shrink-0 mt-0.5"
@@ -390,7 +390,7 @@ export default function CheckoutModal({
                               setSelectedCustomer(c);
                               setCustomerSearch(c.name);
                               setCustomerDropdownOpen(false);
-                              setAmountPayingNow("");
+                              setAmountPayingNow(total.toString());
                             }}
                             className="w-full text-left px-4 py-2.5 hover:bg-canvas-50 border-b border-canvas-100 last:border-0 transition-colors"
                           >

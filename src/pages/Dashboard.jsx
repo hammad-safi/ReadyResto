@@ -269,18 +269,32 @@ export default function Dashboard() {
   const cogsEstimate = useMemo(() => {
     const currentOrderIds = new Set(currentOrdersList.map(o => o.id));
     let cost = 0;
+    
+    const addCost = (item, qtyMult = 1) => {
+      const snapshottedCost = Number(item.cost || 0);
+      if (snapshottedCost > 0) {
+        cost += snapshottedCost * Number(item.qty || 1) * qtyMult;
+      } else {
+        const miId = item.menu_item_id || item.id;
+        const mi = menuItems.find(m => String(m.id) === String(miId) || (m.name || "").toLowerCase() === (item.name || "").toLowerCase());
+        if (mi && mi.cost) {
+          cost += Number(mi.cost) * Number(item.qty || 1) * qtyMult;
+        } else {
+          cost += (Number(item.price || 0) * 0.35) * Number(item.qty || 1) * qtyMult;
+        }
+      }
+    };
+
     orderItems.forEach(item => {
       if (currentOrderIds.has(item.order_id)) {
-        const snapshottedCost = Number(item.cost || 0);
-        if (snapshottedCost > 0) {
-          cost += snapshottedCost * Number(item.qty || 1);
-        } else {
-          const mi = menuItems.find(m => String(m.id) === String(item.menu_item_id) || (m.name || "").toLowerCase() === (item.name || "").toLowerCase());
-          if (mi && mi.cost) {
-            cost += Number(mi.cost) * Number(item.qty || 1);
-          } else {
-            cost += (Number(item.price || 0) * 0.35) * Number(item.qty || 1);
+        if (item.is_deal === 1 || item.is_deal === true) {
+          if (Array.isArray(item.sub_items)) {
+            item.sub_items.forEach(sub => {
+              addCost(sub, Number(item.qty || 1));
+            });
           }
+        } else {
+          addCost(item, 1);
         }
       }
     });
@@ -297,16 +311,22 @@ export default function Dashboard() {
   
   // Dynamic calculations from flat journal entries
   const cashPosition = useMemo(() => {
-    let debits = 0;
-    let credits = 0;
+    let amount = 0;
     (journalEntries || []).forEach(je => {
       if (je.account_code === '1001' || je.account_code === '1002') {
-        debits += Number(je.debit || 0);
-        credits += Number(je.credit || 0);
+        amount += Number(je.debit || 0) - Number(je.credit || 0);
       }
     });
-    return debits - credits;
-  }, [journalEntries]);
+    
+    orders.forEach(o => {
+      if (o.status === "paid" && (o.payment_method === "Cash" || o.payment_method === "Card")) {
+        const paidAmt = (o.tendered !== null && o.tendered !== undefined ? Number(o.tendered) : Number(o.total)) - (Number(o.change_due) || 0);
+        amount += paidAmt;
+      }
+    });
+
+    return amount;
+  }, [journalEntries, orders]);
 
   const accountsReceivable = useMemo(() => {
     let debits = 0;

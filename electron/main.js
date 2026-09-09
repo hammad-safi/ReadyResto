@@ -510,8 +510,22 @@ function registerIpcHandlers() {
 
       if (['paid', 'completed', 'served'].includes(payload.status)) {
         const isCash = (payload.payment_method || 'cash').toLowerCase().includes('cash');
-        const bankOrCashCode = isCash ? '1001' : '1002';
-        const bankOrCashName = isCash ? 'Cash in Drawer' : 'Bank Account (Main)';
+        const isFoodpanda = (payload.payment_method || '').toLowerCase().includes('foodpanda');
+        let bankOrCashCode = isCash ? '1001' : '1002';
+        let bankOrCashName = isCash ? 'Cash in Drawer' : 'Bank Account (Main)';
+        
+        if (payload.type === 'Delivery') {
+          if (isFoodpanda) {
+            bankOrCashCode = '1007';
+            bankOrCashName = 'Third-Party Receivables';
+          } else if (isCash) {
+            bankOrCashCode = '1006';
+            bankOrCashName = 'Cash with Drivers';
+            if (payload.waiter) {
+              db.prepare("UPDATE employees SET cash_balance = cash_balance + ? WHERE name = ?").run(Number(payload.total || 0), payload.waiter);
+            }
+          }
+        }
         const tot = Number(payload.total || 0);
         const tTax = Number(payload.tax || 0);
         const tSc = Number(payload.service_charge || 0);
@@ -1359,16 +1373,16 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("accounts:create", async (evt, data) => {
-    const { code, name, type, parent_code, description } = data;
-    db.prepare("INSERT INTO accounts (code, name, type, parent_code, description) VALUES (?, ?, ?, ?, ?)")
-      .run(code, name, type, parent_code || null, description || null);
+    const { code, name, type, parent_code, description, normal_balance, opening_balance, opening_balance_date, currency, branch } = data;
+    db.prepare("INSERT INTO accounts (code, name, type, parent_code, description, normal_balance, opening_balance, opening_balance_date, currency, branch) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(code, name, type, parent_code || null, description || null, normal_balance || null, opening_balance || 0, opening_balance_date || null, currency || null, branch || null);
     return { success: true };
   });
 
   ipcMain.handle("accounts:update", async (evt, id, data) => {
-    const { name, type, parent_code, description, is_active } = data;
-    db.prepare("UPDATE accounts SET name=?, type=?, parent_code=?, description=?, is_active=? WHERE id=? AND is_system=0")
-      .run(name, type, parent_code || null, description || null, is_active ?? 1, id);
+    const { code, name, type, parent_code, description, normal_balance, opening_balance, opening_balance_date, currency, branch, is_active } = data;
+    db.prepare("UPDATE accounts SET code=?, name=?, type=?, parent_code=?, description=?, normal_balance=?, opening_balance=?, opening_balance_date=?, currency=?, branch=?, is_active=? WHERE id=? AND is_system=0")
+      .run(code, name, type, parent_code || null, description || null, normal_balance || null, opening_balance || 0, opening_balance_date || null, currency || null, branch || null, is_active ?? 1, id);
     return { success: true };
   });
 
@@ -1376,6 +1390,106 @@ function registerIpcHandlers() {
     db.prepare("UPDATE accounts SET is_active = 0 WHERE id = ? AND is_system = 0").run(id);
     return { success: true };
   });
+
+  // Journal Handlers
+  ipcMain.handle("journal:create", async (evt, data) => {
+    const { date, reference_number, description, branch, currency, exchange_rate, attachment_path, status, created_by, lines } = data;
+    db.exec("BEGIN");
+    try {
+      const entryNumber = "JV-" + Date.now();
+      const res = db.prepare("INSERT INTO journal_headers (entry_number, date, reference_number, description, branch, currency, exchange_rate, attachment_path, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
+        entryNumber, date, reference_number || null, description, branch || null, currency || null, exchange_rate || 1, attachment_path || null, status || 'Draft', created_by || null
+      );
+      const headerId = res.lastInsertRowid;
+      
+      const insertLine = db.prepare("INSERT INTO journal_entries (header_id, date, reference_type, reference_id, account_code, account_name, debit, credit, description, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      for (const line of lines) {
+        insertLine.run(headerId, date, 'Manual Journal', reference_number || null, line.account_code, line.account_name || null, line.debit || 0, line.credit || 0, line.description || null, created_by || null);
+      }
+      db.exec("COMMIT");
+      return { success: true, id: headerId };
+    } catch(err) {
+      db.exec("ROLLBACK");
+      throw err;
+    }
+  });
+
+  ipcMain.handle("journal:update", async (evt, id, data) => {
+    const { date, reference_number, description, branch, currency, exchange_rate, attachment_path, status, created_by, lines } = data;
+    db.exec("BEGIN");
+    try {
+      db.prepare("UPDATE journal_headers SET date=?, reference_number=?, description=?, branch=?, currency=?, exchange_rate=?, attachment_path=?, status=? WHERE id=?").run(
+        date, reference_number || null, description, branch || null, currency || null, exchange_rate || 1, attachment_path || null, status || 'Draft', id
+      );
+      
+      db.prepare("DELETE FROM journal_entries WHERE header_id = ?").run(id);
+      
+      const insertLine = db.prepare("INSERT INTO journal_entries (header_id, date, reference_type, reference_id, account_code, account_name, debit, credit, description, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      for (const line of lines) {
+        insertLine.run(id, date, 'Manual Journal', reference_number || null, line.account_code, line.account_name || null, line.debit || 0, line.credit || 0, line.description || null, created_by || null);
+      }
+      db.exec("COMMIT");
+      return { success: true };
+    } catch(err) {
+      db.exec("ROLLBACK");
+      throw err;
+    }
+  });
+
+  ipcMain.handle("journal:reverse", async (evt, id, created_by) => {
+    db.exec("BEGIN");
+    try {
+      const header = db.prepare("SELECT * FROM journal_headers WHERE id = ?").get(id);
+      if (!header) throw new Error("Header not found");
+      if (header.status !== 'Posted') throw new Error("Only posted entries can be reversed");
+
+      const entryNumber = "JV-REV-" + Date.now();
+      const res = db.prepare("INSERT INTO journal_headers (entry_number, date, reference_number, description, branch, currency, exchange_rate, attachment_path, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
+        entryNumber, getLocalISODate(), header.reference_number, "Reversal of " + header.entry_number, header.branch, header.currency, header.exchange_rate, null, 'Posted', created_by
+      );
+      const revHeaderId = res.lastInsertRowid;
+
+      const lines = db.prepare("SELECT * FROM journal_entries WHERE header_id = ?").all(id);
+      const insertLine = db.prepare("INSERT INTO journal_entries (header_id, date, reference_type, reference_id, account_code, account_name, debit, credit, description, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      for (const line of lines) {
+        // Reverse debit and credit
+        insertLine.run(revHeaderId, getLocalISODate(), 'Manual Journal', header.reference_number, line.account_code, line.account_name, line.credit, line.debit, "Reversal: " + (line.description || ""), created_by);
+      }
+
+      db.prepare("UPDATE journal_headers SET status = 'Reversed' WHERE id = ?").run(id);
+
+      db.exec("COMMIT");
+      return { success: true };
+    } catch(err) {
+      db.exec("ROLLBACK");
+      throw err;
+    }
+  });
+
+
+
+  ipcMain.handle("accounting:settleDriverCash", async (evt, driverName, amount, meta = {}) => {
+    db.exec("BEGIN");
+    try {
+      db.prepare("UPDATE employees SET cash_balance = MAX(0, cash_balance - ?) WHERE name = ?").run(amount, driverName);
+      const dateNow = getLocalISODate();
+      const journalEntries = [
+        { date: dateNow, reference_type: 'Driver Settlement', reference_id: driverName, account_code: '1001', account_name: 'Cash in Drawer', debit: amount, credit: 0, description: `Cash settled from driver ${driverName}`, created_by: meta.user },
+        { date: dateNow, reference_type: 'Driver Settlement', reference_id: driverName, account_code: '1006', account_name: 'Cash with Drivers', debit: 0, credit: amount, description: `Cash settled from driver ${driverName}`, created_by: meta.user }
+      ];
+      const ins = db.prepare("INSERT INTO journal_entries (date, reference_type, reference_id, account_code, account_name, debit, credit, description, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      for (const e of journalEntries) {
+        ins.run(e.date, e.reference_type, e.reference_id, e.account_code, e.account_name || '', Number(e.debit || 0), Number(e.credit || 0), e.description || '', e.created_by || '');
+      }
+      db.exec("COMMIT");
+      if (meta.user) logAudit(meta.user, "Accounting", `Settled Rs. ${amount} from Driver ${driverName}`, meta.device);
+      return { success: true };
+    } catch(err) {
+      db.exec("ROLLBACK");
+      throw err;
+    }
+  });
+
 
   // Journal Entries
   ipcMain.handle("journal:post", async (evt, entries) => {

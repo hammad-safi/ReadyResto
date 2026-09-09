@@ -83,6 +83,8 @@ export default function POS() {
 
   const [customers, setCustomers] = useState([]);
   const [waiters, setWaiters] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [recipeIngredients, setRecipeIngredients] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useStickyState(null, "pos_selectedCustomer");
   const [selectedWaiterId, setSelectedWaiterId] = useStickyState("", "pos_selectedWaiterId");
 
@@ -122,10 +124,22 @@ export default function POS() {
 
   useEffect(() => {
     setMenuLoading(true);
-    getData("menu_items").then((rows) => {
-      setMenuItems(rows);
-      const uniqueCats = Array.from(new Set(rows.map(item => item.category).filter(Boolean)));
-      setCategories(uniqueCats);
+    getData("menu_items").then(async (rows) => {
+      let deals = [];
+      try { deals = await api.listDeals(); } catch(e) {}
+      const mappedDeals = deals.map(d => ({
+        ...d,
+        id: `deal_${d.id}`,
+        is_deal: true,
+        deal_id: d.id,
+        category: "Deals",
+        cost: Number(d.cost) || 0,
+        barcode: d.barcode || ""
+      }));
+      const combined = [...rows, ...mappedDeals];
+      setMenuItems(combined);
+      const uniqueCats = Array.from(new Set(combined.map(item => item.category).filter(Boolean)));
+      setCategories(["Deals", ...uniqueCats.filter(c => c !== "Deals")]);
       setMenuLoading(false);
     });
     refreshTables();
@@ -133,6 +147,8 @@ export default function POS() {
     api.getSetting("restaurant_profile").then(setProfile);
     getData("customers").then(setCustomers);
     getData("employees", { where: { role: "Waiter" } }).then(setWaiters);
+    getData("inventory_items").then(setInventoryItems);
+    getData("recipe_ingredients").then(setRecipeIngredients);
     if (user?.id) {
       api.getCurrentShift(user.id).then(setCurrentShift);
     }
@@ -168,16 +184,83 @@ export default function POS() {
 
   const cartItemCount = cart.reduce((s, c) => s + c.qty, 0);
 
+  const canAddToCart = useCallback((itemToAdd, qtyToAdd = 1) => {
+    if (itemToAdd.status === "out_of_stock") return false;
+    
+    const requiredInv = {};
+    const addMenuItemReq = (menuItemId, qty) => {
+      const lines = recipeIngredients.filter(r => r.menu_item_id === menuItemId);
+      for (const line of lines) {
+        const invId = line.inventory_item_id || line.ingredient_id;
+        if (!requiredInv[invId]) requiredInv[invId] = 0;
+        requiredInv[invId] += (line.qty || 0) * qty;
+      }
+    };
+    
+    for (const c of cart) {
+      if (c.is_deal) {
+        for (const sub of (c.sub_items || [])) {
+          addMenuItemReq(sub.menu_item_id || sub.id, (sub.qty || 1) * c.qty);
+        }
+      } else {
+        addMenuItemReq(c.id, c.qty);
+      }
+    }
+    
+    if (itemToAdd.is_deal) {
+      for (const g of (itemToAdd.groups || [])) {
+        const firstChoice = g.items && g.items.length > 0 ? g.items[0] : null;
+        if (firstChoice) addMenuItemReq(firstChoice.menu_item_id, (g.qty_required || 1) * qtyToAdd);
+      }
+    } else {
+      addMenuItemReq(itemToAdd.id, qtyToAdd);
+    }
+    
+    for (const invId in requiredInv) {
+      const inv = inventoryItems.find(i => String(i.id) === String(invId));
+      if (inv && inv.stock < requiredInv[invId]) {
+        return false;
+      }
+    }
+    return true;
+  }, [cart, recipeIngredients, inventoryItems]);
+
   const addToCart = (item) => {
-    if (item.status === "out_of_stock") return;
+    setQuery("");
+    if (!canAddToCart(item, 1)) {
+      alert("Cannot add to cart. Insufficient stock for one or more required ingredients.");
+      return;
+    }
+
+    if (item.is_deal) {
+      const sub_items = [];
+      for (const g of (item.groups || [])) {
+        const firstChoice = g.items && g.items.length > 0 ? g.items[0] : null;
+        if (firstChoice) {
+          const menuItem = menuItems.find(m => m.id === firstChoice.menu_item_id);
+          if (menuItem) sub_items.push({ ...menuItem, qty: g.qty_required || 1 });
+        }
+      }
+      const uniqueCartId = "deal_" + Date.now();
+      setCart(prev => [...prev, { ...item, id: uniqueCartId, qty: 1, note: "", sub_items }]);
+      return;
+    }
+
     setCart((prev) => {
-      const existing = prev.find((c) => c.id === item.id);
-      if (existing) return prev.map((c) => (c.id === item.id ? { ...c, qty: c.qty + 1 } : c));
+      const existing = prev.find((c) => c.id === item.id && !c.is_deal);
+      if (existing) return prev.map((c) => (c.id === item.id && !c.is_deal ? { ...c, qty: c.qty + 1 } : c));
       return [...prev, { ...item, qty: 1, note: "" }];
     });
   };
 
   const updateQty = (id, delta) => {
+    if (delta > 0) {
+      const itemInCart = cart.find(c => c.id === id);
+      if (itemInCart && !canAddToCart(itemInCart, delta)) {
+        alert("Cannot increase quantity. Insufficient stock.");
+        return;
+      }
+    }
     setCart((prev) => prev.map((c) => (c.id === id ? { ...c, qty: Math.max(0, c.qty + delta) } : c)).filter((c) => c.qty > 0));
   };
 
@@ -278,7 +361,10 @@ export default function POS() {
       const gp = netRevenue - cogs;
 
       return {
-        menu_item_id: c.id,
+        menu_item_id: c.is_deal ? null : c.id,
+        deal_id: c.is_deal ? c.deal_id : null,
+        is_deal: c.is_deal ? 1 : 0,
+        sub_items: c.sub_items || [],
         name: c.name,
         qty: c.qty,
         price: c.price,
@@ -421,7 +507,7 @@ export default function POS() {
   };
 
   return (
-    <div className="relative grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-5 h-full">
+    <div className="relative grid grid-cols-1 xl:grid-cols-[1fr_480px] gap-5 h-full">
       {/* MENU PANEL */}
       <div className="min-w-0">
 
@@ -465,6 +551,19 @@ export default function POS() {
               ref={searchInputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && query.trim()) {
+                  const q = query.trim().toLowerCase();
+                  const exactMatch = menuItems.find(m => m.barcode && m.barcode.toLowerCase() === q);
+                  if (exactMatch) {
+                    addToCart(exactMatch);
+                    setQuery("");
+                  } else if (filtered.length === 1) {
+                    addToCart(filtered[0]);
+                    setQuery("");
+                  }
+                }
+              }}
               placeholder="Search menu or scan barcode…"
               aria-label="Search menu items"
               className="w-full bg-white border border-canvas-200 rounded-xl pl-11 pr-9 py-3 text-sm shadow-soft outline-none focus:ring-2 focus:ring-paprika-500/20 focus:border-paprika-400 transition-all"
@@ -519,7 +618,7 @@ export default function POS() {
           <div className="grid gap-3" style={itemGridStyle}>
             {filtered.map((item) => {
               const inCartQty = cartQtyById[item.id] || 0;
-              const outOfStock = item.status === "out_of_stock";
+              const outOfStock = !canAddToCart(item, 1);
               const hasPhoto = item.image && item.image.startsWith("data:");
               return (
                 <button
@@ -579,7 +678,7 @@ export default function POS() {
       </div>
 
       {/* CART PANEL — Fully Responsive Desktop/POS Sidebar */}
-      <div className="flex flex-col w-full bg-white border border-canvas-200 rounded-2xl shadow-lg overflow-hidden h-[calc(100vh-2rem)] md:h-[calc(100vh-6rem)] max-h-[920px] min-h-[600px] xl:sticky xl:top-6 order-1 xl:order-2 select-none">
+      <div className="flex flex-col bg-white border border-canvas-200 rounded-none shadow-lg overflow-hidden h-[calc(100vh-4rem)] min-h-[600px] xl:sticky xl:top-0 xl:-mt-8 xl:-mr-8 xl:-mb-8 order-1 xl:order-2 select-none z-10">
 
   {/* 1. TOP HEADER & ORDER CONTEXT SELECTORS */}
   <div className="p-3.5 sm:p-4 2xl:p-5 border-b border-canvas-200 bg-canvas-50/60 space-y-3 shrink-0">
@@ -754,10 +853,22 @@ export default function POS() {
                     <span>{item.image || item.img || "🍽️"}</span>
                   )}
                 </div>
-                <div className="min-w-0">
-                  <h4 className="font-bold text-xs 2xl:text-sm text-ink-900 truncate leading-snug">{item.name}</h4>
-                  <p className="text-paprika-600 font-mono font-bold text-xs 2xl:text-sm mt-0.5">{fmt(item.price)}</p>
-                </div>
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-xs 2xl:text-sm text-ink-900 truncate leading-snug">{item.name}</h4>
+                    {item.is_deal && (
+                      <details className="mt-1 group">
+                        <summary className="text-[10px] font-bold text-paprika-600 cursor-pointer list-none flex items-center gap-1 select-none w-max">
+                          View Contents <span className="text-[8px] group-open:rotate-180 transition-transform">▼</span>
+                        </summary>
+                        <div className="text-[10px] text-ink-500 mt-1 pl-1.5 space-y-0.5 leading-tight border-l-2 border-canvas-200">
+                          {item.sub_items?.map((sub, idx) => (
+                            <div key={idx} className="truncate">{sub.qty}x {sub.name}</div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                    <p className="text-paprika-600 font-mono font-bold text-xs 2xl:text-sm mt-0.5">{fmt(item.price)}</p>
+                  </div>
               </div>
 
               {/* Quantity Counter Control */}
@@ -1230,6 +1341,8 @@ export default function POS() {
           onClose={() => setReceiptData(null)}
         />
       )}
+
+
     </div>
   );
 }

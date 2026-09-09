@@ -184,7 +184,7 @@ const TABLES_LIST = [
   "cashier_shifts", "accounts", "journal_entries"
 ];
 
-for (const tbl of TABLES_LIST) {
+for (const tbl of TABLES_LIST) { if (!store[tbl]) store[tbl] = [];
   const maxExisting = calculateMaxId(tbl);
   if (!store.sequences[tbl] || store.sequences[tbl] < maxExisting) {
     store.sequences[tbl] = maxExisting;
@@ -376,6 +376,18 @@ const memoryApi = {
       store[table][existingIdx] = { ...store[table][existingIdx], ...row };
     } else {
       store[table] = [row, ...(store[table] || [])];
+      
+      if (table === "expenses") {
+        const expCode = row.expense_account_code || '5099';
+        const d = row.date || new Date().toISOString();
+        const payCode = row.paid_by === 'Cash' ? '1001' : (row.paid_by === 'Bank' ? '1002' : '2001');
+        
+        store.journal_entries = [
+          ...store.journal_entries,
+          { id: nextSeqId("journal_entries"), date: d, reference_type: 'Expense', reference_id: String(row.id), account_code: expCode, account_name: 'Expense', debit: Number(row.amount || 0), credit: 0, description: row.notes || '', created_by: auditCtx?.user || 'System' },
+          { id: nextSeqId("journal_entries"), date: d, reference_type: 'Expense', reference_id: String(row.id), account_code: payCode, account_name: 'Payment', debit: 0, credit: Number(row.amount || 0), description: row.notes || '', created_by: auditCtx?.user || 'System' }
+        ];
+      }
     }
     
     if (auditCtx) logAudit(auditCtx);
@@ -428,7 +440,6 @@ const memoryApi = {
 
   // Auth
   loginWithPin: async (pin) => {
-    if (rawApi.loginWithPin) return await rawApi.loginWithPin(pin);
     const user = store.users.find((u) => u.pin === pin && u.status === "active");
     if (user) {
       const idx = store.users.findIndex((u) => u.id === user.id);
@@ -440,7 +451,6 @@ const memoryApi = {
   },
 
   loginWithPassword: async (usernameOrEmail, password) => {
-    if (rawApi.loginWithPassword) return await rawApi.loginWithPassword(usernameOrEmail, password);
     const user = store.users.find((u) => (u.name === usernameOrEmail || u.email === usernameOrEmail) && u.password === password && u.status === "active");
     if (user) {
       const idx = store.users.findIndex((u) => u.id === user.id);
@@ -452,13 +462,11 @@ const memoryApi = {
   },
 
   adminOverride: async (ownerPassword) => {
-    if (rawApi.adminOverride) return await rawApi.adminOverride(ownerPassword);
     const owner = store.users.find((u) => u.role === "Owner" && u.password === ownerPassword);
     return { success: !!owner, owner, message: owner ? "" : "Incorrect master password" };
   },
 
   resetUserPin: async (userId, newPin, ownerPassword) => {
-    if (rawApi.resetUserPin) return await rawApi.resetUserPin(userId, newPin, ownerPassword);
     const owner = store.users.find((u) => u.role === "Owner" && u.password === ownerPassword);
     if (!owner) return { success: false, message: "Incorrect master password" };
     store.users = store.users.map((u) => (u.id === userId ? { ...u, pin: newPin } : u));
@@ -468,7 +476,6 @@ const memoryApi = {
   },
 
   resetUserPassword: async (userId, newPassword, ownerPassword) => {
-    if (rawApi.resetUserPassword) return await rawApi.resetUserPassword(userId, newPassword, ownerPassword);
     const owner = store.users.find((u) => u.role === "Owner" && u.password === ownerPassword);
     if (!owner) return { success: false, message: "Incorrect master password" };
     store.users = store.users.map((u) => (u.id === userId ? { ...u, password: newPassword } : u));
@@ -545,7 +552,7 @@ const memoryApi = {
       id: orderId,
     };
 
-    const existingIdx = store.orders.findIndex((o) => o.id === full.id);
+    const existingIdx = (store.orders || []).findIndex((o) => o.id === full.id);
     if (existingIdx >= 0) store.orders[existingIdx] = { ...store.orders[existingIdx], ...full };
     else store.orders = [full, ...store.orders];
 
@@ -562,19 +569,39 @@ const memoryApi = {
     
     // Auto-deduct inventory based on recipes
     for (const item of items) {
-      const recipeLines = store.recipe_ingredients.filter(r => r.menu_item_id === item.menu_item_id);
-      for (const line of recipeLines) {
-        const deductQty = line.qty * item.qty;
-        store.inventory_items = store.inventory_items.map(inv => {
-          if (inv.id === line.inventory_item_id) {
-            const newStock = Math.max(0, inv.stock - deductQty);
-            if (newStock <= inv.reorder && inv.stock > inv.reorder) {
-              memoryApi.pushNotification("low_stock", `Low Stock: ${inv.name} (${newStock} ${inv.unit} left).`);
-            }
-            return { ...inv, stock: newStock, status: newStock <= 0 ? "critical" : newStock <= inv.reorder ? "low" : "in_stock" };
+      if (item.is_deal && Array.isArray(item.sub_items)) {
+        for (const sub of item.sub_items) {
+          const subMenuItemId = sub.menu_item_id || sub.id;
+          const recipeLines = store.recipe_ingredients.filter(r => r.menu_item_id === subMenuItemId);
+          for (const line of recipeLines) {
+            const deductQty = (line.qty || 0) * (sub.qty || 1) * (item.qty || 1);
+            store.inventory_items = store.inventory_items.map(inv => {
+              if (inv.id === (line.inventory_item_id || line.ingredient_id)) {
+                const newStock = Math.max(0, inv.stock - deductQty);
+                if (newStock <= inv.reorder && inv.stock > inv.reorder) {
+                  memoryApi.pushNotification("low_stock", `Low Stock: ${inv.name} (${newStock} ${inv.unit} left).`);
+                }
+                return { ...inv, stock: newStock, status: newStock <= 0 ? "critical" : newStock <= inv.reorder ? "low" : "in_stock" };
+              }
+              return inv;
+            });
           }
-          return inv;
-        });
+        }
+      } else {
+        const recipeLines = store.recipe_ingredients.filter(r => r.menu_item_id === item.menu_item_id);
+        for (const line of recipeLines) {
+          const deductQty = (line.qty || 0) * (item.qty || 1);
+          store.inventory_items = store.inventory_items.map(inv => {
+            if (inv.id === (line.inventory_item_id || line.ingredient_id)) {
+              const newStock = Math.max(0, inv.stock - deductQty);
+              if (newStock <= inv.reorder && inv.stock > inv.reorder) {
+                memoryApi.pushNotification("low_stock", `Low Stock: ${inv.name} (${newStock} ${inv.unit} left).`);
+              }
+              return { ...inv, stock: newStock, status: newStock <= 0 ? "critical" : newStock <= inv.reorder ? "low" : "in_stock" };
+            }
+            return inv;
+          });
+        }
       }
     }
     
@@ -613,10 +640,50 @@ const memoryApi = {
     if (!existingOrder) return delay(null);
     const updatedOrder = { ...existingOrder, ...orderUpdates };
     store.orders = store.orders.map((o) => (o.id === orderId ? updatedOrder : o));
-    store.order_items = [
-      ...store.order_items.filter((it) => it.order_id !== orderId),
-      ...items.map((it) => ({ id: it.id || nextSeqId("order_items"), order_id: orderId, ...it }))
-    ];
+    if (items && Array.isArray(items)) {
+      store.order_items = [
+        ...store.order_items.filter((it) => it.order_id !== orderId),
+        ...items.map((it) => ({ id: it.id || nextSeqId("order_items"), order_id: orderId, ...it }))
+      ];
+
+      // Auto-deduct inventory based on recipes
+      for (const item of items) {
+        if (item.is_deal && Array.isArray(item.sub_items)) {
+          for (const sub of item.sub_items) {
+            const subMenuItemId = sub.menu_item_id || sub.id;
+            const recipeLines = store.recipe_ingredients.filter(r => r.menu_item_id === subMenuItemId);
+            for (const line of recipeLines) {
+              const deductQty = (line.qty || 0) * (sub.qty || 1) * (item.qty || 1);
+              store.inventory_items = store.inventory_items.map(inv => {
+                if (inv.id === (line.inventory_item_id || line.ingredient_id)) {
+                  const newStock = Math.max(0, inv.stock - deductQty);
+                  if (newStock <= inv.reorder && inv.stock > inv.reorder) {
+                    memoryApi.pushNotification("low_stock", `Low Stock: ${inv.name} (${newStock} ${inv.unit} left).`);
+                  }
+                  return { ...inv, stock: newStock, status: newStock <= 0 ? "critical" : newStock <= inv.reorder ? "low" : "in_stock" };
+                }
+                return inv;
+              });
+            }
+          }
+        } else {
+          const recipeLines = store.recipe_ingredients.filter(r => r.menu_item_id === item.menu_item_id);
+          for (const line of recipeLines) {
+            const deductQty = (line.qty || 0) * (item.qty || 1);
+            store.inventory_items = store.inventory_items.map(inv => {
+              if (inv.id === (line.inventory_item_id || line.ingredient_id)) {
+                const newStock = Math.max(0, inv.stock - deductQty);
+                if (newStock <= inv.reorder && inv.stock > inv.reorder) {
+                  memoryApi.pushNotification("low_stock", `Low Stock: ${inv.name} (${newStock} ${inv.unit} left).`);
+                }
+                return { ...inv, stock: newStock, status: newStock <= 0 ? "critical" : newStock <= inv.reorder ? "low" : "in_stock" };
+              }
+              return inv;
+            });
+          }
+        }
+      }
+    }
     if (updatedOrder.table_id) {
       store.tables_floor = store.tables_floor.map((t) =>
         t.id === updatedOrder.table_id ? { ...t, status: "occupied", order_id: updatedOrder.id } : t
@@ -630,56 +697,92 @@ const memoryApi = {
   processPurchaseOrder: (poData, itemsData, auditCtx) => {
     const poId = poData.id !== undefined && poData.id !== null ? poData.id : nextSeqId("purchase_orders");
     const po = { ...poData, id: poId };
-    const existingPoIdx = store.purchase_orders.findIndex(p => p.id === po.id);
-    if (existingPoIdx >= 0) store.purchase_orders[existingPoIdx] = { ...store.purchase_orders[existingPoIdx], ...po };
-    else store.purchase_orders = [po, ...store.purchase_orders];
+    const existingPoIdx = (store.purchase_orders || []).findIndex(p => p.id === po.id);
+    if (existingPoIdx >= 0) {
+      store.purchase_orders[existingPoIdx] = { ...store.purchase_orders[existingPoIdx], ...po };
+    } else {
+      store.purchase_orders = [po, ...(store.purchase_orders || [])];
+    }
 
     store.purchase_order_items = [
-      ...store.purchase_order_items.filter(it => it.po_id !== po.id),
+      ...(store.purchase_order_items || []).filter(it => it.po_id !== po.id),
       ...itemsData.map(it => ({ id: it.id || nextSeqId("purchase_order_items"), po_id: po.id, ...it }))
     ];
-
-    if (po.status === "received") {
-      for (const item of itemsData) {
-        store.inventory_items = store.inventory_items.map(inv =>
-          inv.id === item.inventory_item_id
-            ? { ...inv, stock: Number(inv.stock) + Number(item.qty) }
-            : inv
-        );
-      }
-      
-      store.suppliers = store.suppliers.map(s => 
-        s.name === po.supplier 
-          ? { ...s, due: Number(s.due || 0) + (Number(po.total) - Number(po.amount_paid_on_receive || 0)) }
-          : s
-      );
-
-      if (Number(po.amount_paid_on_receive) > 0) {
-        const isCash = (po.payment_method_on_receive || '').toLowerCase().includes('cash');
-        const acctKeyword = isCash ? "Cash" : "Bank";
-        let deducted = false;
-        store.accounts = store.accounts.map(a => {
-          if (!deducted && a.name.includes(acctKeyword)) {
-            deducted = true;
-            return { ...a, balance: Number(a.balance) - Number(po.amount_paid_on_receive) };
-          }
-          return a;
-        });
+      if (po.status === "received") {
+        for (const item of itemsData) {
+          store.inventory_items = (store.inventory_items || []).map(inv =>
+            inv.id === item.inventory_item_id
+              ? { ...inv, stock: Number(inv.stock) + Number(item.qty), cost: Number(item.cost || 0) > 0 ? Number(item.cost) : Number(inv.cost || 0), status: (Number(inv.stock) + Number(item.qty)) <= 0 ? "critical" : (Number(inv.stock) + Number(item.qty)) <= (inv.reorder || 10) ? "low" : "in_stock" }
+              : inv
+          );
+        }
         
-        const journalEntry = {
-          id: nextSeqId("journal_entries"),
-          date: po.date || new Date().toISOString(),
-          reference_type: "Purchase",
-          reference_id: po.id,
-          account_code: isCash ? "1001" : "1002",
-          account_name: isCash ? "Cash in Hand" : "Bank Account",
-          debit: 0,
-          credit: Number(po.amount_paid_on_receive),
-          description: `Payment for PO #${po.id}`,
-          created_by: "System"
-        };
-        store.journal_entries = [journalEntry, ...store.journal_entries];
-      }
+        store.suppliers = (store.suppliers || []).map(s => 
+          s.name === po.supplier 
+            ? { ...s, due: Number(s.due || 0) + (Number(po.total) - Number(po.amount_paid_on_receive || 0)) }
+            : s
+        );
+
+        const dateNow = po.date || new Date().toISOString();
+        const isCash = (po.payment_method_on_receive || '').toLowerCase().includes('cash');
+        const bankOrCashCode = isCash ? '1001' : '1002';
+        const bankOrCashName = isCash ? 'Cash in Hand' : 'Bank Account';
+        
+        let journalEntries = [
+          {
+            id: nextSeqId("journal_entries"),
+            date: dateNow,
+            reference_type: 'Purchase',
+            reference_id: po.id,
+            account_code: '5001',
+            account_name: 'Cost of Goods Sold',
+            debit: Number(po.total || 0),
+            credit: 0,
+            description: `PO #${po.id}`,
+            created_by: 'System'
+          }
+        ];
+
+        if (Number(po.amount_paid_on_receive) > 0) {
+          let deducted = false;
+          store.accounts = (store.accounts || []).map(a => {
+            if (!deducted && a.name.includes(isCash ? "Cash" : "Bank")) {
+              deducted = true;
+              return { ...a, balance: Number(a.balance) - Number(po.amount_paid_on_receive) };
+            }
+            return a;
+          });
+          
+          journalEntries.push({
+            id: nextSeqId("journal_entries"),
+            date: dateNow,
+            reference_type: "Purchase",
+            reference_id: po.id,
+            account_code: bankOrCashCode,
+            account_name: bankOrCashName,
+            debit: 0,
+            credit: Number(po.amount_paid_on_receive),
+            description: `Payment for PO #${po.id}`,
+            created_by: "System"
+          });
+        }
+
+        const payableAmt = Number(po.total || 0) - Number(po.amount_paid_on_receive || 0);
+        if (payableAmt > 0) {
+          journalEntries.push({
+            id: nextSeqId("journal_entries"),
+            date: dateNow,
+            reference_type: "Purchase",
+            reference_id: po.id,
+            account_code: '2001',
+            account_name: 'Accounts Payable',
+            debit: 0,
+            credit: payableAmt,
+            description: `Payable for PO #${po.id}`,
+            created_by: "System"
+          });
+        }
+        store.journal_entries = [...journalEntries, ...(store.journal_entries || [])];
     }
     
     if (po.status === "sent") {
@@ -689,6 +792,62 @@ const memoryApi = {
     if (auditCtx) logAudit(auditCtx);
     persistStore();
     return delay(po);
+  },
+
+  paySupplier: (supplierId, data, auditCtx) => {
+    const supplier = (store.suppliers || []).find(s => s.id === supplierId);
+    if (!supplier) throw new Error('Supplier not found');
+    const amount = Number(data.amount || 0);
+    if (amount <= 0) throw new Error('Payment amount must be greater than zero');
+    const newDue = Math.max(0, Number(supplier.due || 0) - amount);
+    store.suppliers = store.suppliers.map(s => s.id === supplierId ? { ...s, due: newDue } : s);
+    const payment = {
+      id: nextSeqId('supplier_payments'),
+      supplier_id: supplierId,
+      supplier_name: supplier.name,
+      amount,
+      payment_method: data.payment_method || 'Cash',
+      notes: data.notes || '',
+      date: data.date || new Date().toISOString(),
+      created_at: new Date().toISOString()
+    };
+    store.supplier_payments = [payment, ...(store.supplier_payments || [])];
+    
+    const isCash = (data.payment_method || '').toLowerCase().includes('cash');
+    const bankOrCashCode = isCash ? '1001' : '1002';
+    const bankOrCashName = isCash ? 'Cash in Hand' : 'Bank Account';
+    const dateNow = data.date || new Date().toISOString();
+
+    const journalEntries = [
+      {
+        id: nextSeqId("journal_entries"),
+        date: dateNow,
+        reference_type: 'Supplier Payment',
+        reference_id: supplierId,
+        account_code: '2001',
+        account_name: 'Accounts Payable',
+        debit: amount,
+        credit: 0,
+        description: `Payment to ${supplier.name}`,
+        created_by: auditCtx ? auditCtx.user : 'System'
+      },
+      {
+        id: nextSeqId("journal_entries"),
+        date: dateNow,
+        reference_type: 'Supplier Payment',
+        reference_id: supplierId,
+        account_code: bankOrCashCode,
+        account_name: bankOrCashName,
+        debit: 0,
+        credit: amount,
+        description: `Payment to ${supplier.name}`,
+        created_by: auditCtx ? auditCtx.user : 'System'
+      }
+    ];
+    store.journal_entries = [...journalEntries, ...(store.journal_entries || [])];
+    if (auditCtx) logAudit(auditCtx);
+    persistStore();
+    return delay(payment);
   },
 
   processReturn: (orderId, payload, auditCtx) => {
@@ -741,13 +900,13 @@ const memoryApi = {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const activeToday = store.orders.filter((o) => {
+    const activeToday = (store.orders || []).filter((o) => {
       if (o.status === "cancelled") return false;
       const d = new Date(o.created_at);
       return d >= today && d < tomorrow;
     });
 
-    const expensesToday = store.expenses.filter((e) => {
+    const expensesToday = (store.expenses || []).filter((e) => {
       const d = new Date(e.date);
       return d >= today && d < tomorrow;
     });
@@ -755,7 +914,117 @@ const memoryApi = {
     return delay({
       todaySales: activeToday.reduce((s, o) => s + Math.max(0, Number(o.total || 0) - Number(o.refunded_total || 0)), 0),
       todayOrders: activeToday.length,
-      lowStockCount: store.inventory_items.filter((i) => i.status === "low" || i.status === "critical").length,
+      lowStockCount: (store.inventory_items || []).filter((i) => i.status === "low" || i.status === "critical").length,
+      expensesTotal: expensesToday.reduce((s, e) => s + Number(e.amount || 0), 0),
+    });
+  },
+
+  getCurrentShift: (userId) => {
+    const shift = store.cashier_shifts.find(s => s.cashier_id === userId && s.status === "open");
+    return delay(shift || null);
+  },
+  listShifts: () => delay([...store.cashier_shifts].reverse()),
+  openShift: (data) => {
+    const shift = {
+      id: nextSeqId("cashier_shifts"),
+      ...data,
+      status: "open",
+      opened_at: new Date().toISOString(),
+    };
+    store.cashier_shifts.push(shift);
+    persistStore();
+    return delay(shift);
+  },
+  closeShift: (shiftId, data) => {
+    const shift = store.cashier_shifts.find(s => s.id === shiftId);
+    if (!shift) throw new Error("Shift not found");
+    shift.status = "closed";
+    shift.closed_at = new Date().toISOString();
+    shift.actual_cash = data.actual_cash;
+    shift.notes = data.notes;
+    shift.total_sales = store.orders
+        .filter(o => o.shift_id === shiftId || (!o.shift_id && new Date(o.created_at) >= new Date(shift.opened_at)))
+        .reduce((acc, o) => acc + o.total, 0);
+    persistStore();
+    return delay(shift);
+  },
+
+  closeDay: (summary) => {
+    const now = new Date();
+    logAudit({
+      user: summary.user || "System",
+      module: "Operations",
+      action: `Day Closed. Sales: Rs. ${summary.totalSales}`,
+    });
+    memoryApi.pushNotification("system", `Day closed successfully by ${summary.user || "System"}. Net Cash: Rs. ${summary.netCash}`);
+    persistStore();
+    return delay({ success: true });
+  },
+  processReturn: (orderId, payload, auditCtx) => {
+    const { items, reason, restock, kind } = payload;
+    const amount = items.reduce((s, it) => s + it.qty * it.price, 0);
+    const now = new Date();
+    const time = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" });
+    const ret = { id: nextSeqId("sales_returns"), order_id: orderId, kind: kind || "return", items: JSON.stringify(items), amount, reason: reason || "", restock: restock ? 1 : 0, time, created_at: now.toISOString() };
+    store.sales_returns = [ret, ...store.sales_returns];
+    store.orders = store.orders.map((o) => (o.id === orderId ? { ...o, refunded_total: (o.refunded_total || 0) + amount } : o));
+
+    store.order_items = (store.order_items || []).map((it) => {
+      if (it.order_id === orderId) {
+        const returned = items.find((retItem) => retItem.menu_item_id === it.menu_item_id);
+        if (returned) {
+          const newQty = Math.max(0, it.qty - returned.qty);
+          return { ...it, qty: newQty };
+        }
+      }
+      return it;
+    }).filter((it) => it.qty > 0);
+
+    const hasItemsLeft = store.order_items.some((it) => it.order_id === orderId);
+    if (!hasItemsLeft) {
+      store.orders = store.orders.map((o) => (o.id === orderId ? { ...o, kitchen_status: "cancelled" } : o));
+    }
+
+    if (auditCtx) logAudit(auditCtx);
+    persistStore();
+    return delay({ order: store.orders.find((o) => o.id === orderId), return: ret });
+  },
+
+  updateOrderStatus: (id, status, auditCtx) => {
+    store.orders = store.orders.map((o) => (o.id === id ? { ...o, status } : o));
+    if (auditCtx) logAudit(auditCtx);
+    persistStore();
+    return delay(store.orders.find((o) => o.id === id));
+  },
+
+  updateKitchenStatus: (id, kitchen_status, auditCtx) => {
+    store.orders = store.orders.map((o) => (o.id === id ? { ...o, kitchen_status } : o));
+    if (auditCtx) logAudit(auditCtx);
+    persistStore();
+    return delay(store.orders.find((o) => o.id === id));
+  },
+
+  getDashboardSummary: () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const activeToday = (store.orders || []).filter((o) => {
+      if (o.status === "cancelled") return false;
+      const d = new Date(o.created_at);
+      return d >= today && d < tomorrow;
+    });
+
+    const expensesToday = (store.expenses || []).filter((e) => {
+      const d = new Date(e.date);
+      return d >= today && d < tomorrow;
+    });
+
+    return delay({
+      todaySales: activeToday.reduce((s, o) => s + Math.max(0, Number(o.total || 0) - Number(o.refunded_total || 0)), 0),
+      todayOrders: activeToday.length,
+      lowStockCount: (store.inventory_items || []).filter((i) => i.status === "low" || i.status === "critical").length,
       expensesTotal: expensesToday.reduce((s, e) => s + Number(e.amount || 0), 0),
     });
   },
@@ -802,6 +1071,54 @@ const memoryApi = {
     return delay({ success: true });
   },
 
+  listDeals: () => {
+    const deals = store.deals || [];
+    const groups = store.deal_groups || [];
+    const menuItems = store.menu_items || [];
+    return delay(deals.map(d => ({
+      ...d,
+      groups: groups.filter(g => g.deal_id === d.id).map(g => ({
+        ...g,
+        items: (g.menu_item_ids || []).map(id => {
+          const m = menuItems.find(x => x.id === id);
+          return { id: Math.random(), menu_item_id: id, name: m ? m.name : "Unknown" };
+        })
+      }))
+    })));
+  },
+  createDeal: (deal, groups) => {
+    const id = nextSeqId("deals");
+    const newDeal = {
+      ...deal,
+      barcode: deal.barcode || null,
+      cost: deal.cost || 0,
+      id,
+      created_at: new Date().toISOString()
+    };
+    store.deals = [...(store.deals || []), newDeal];
+    store.deal_groups = [...(store.deal_groups || []), ...groups.map(g => ({ ...g, deal_id: id, id: nextSeqId("deal_groups") }))];
+    persistStore();
+    return delay(newDeal);
+  },
+  updateDeal: (id, deal, groups) => {
+    store.deals = (store.deals || []).map(d => d.id === id ? {
+      ...d,
+      ...deal,
+      barcode: deal.barcode !== undefined ? (deal.barcode || null) : (d.barcode || null),
+      cost: deal.cost !== undefined ? (deal.cost || 0) : (d.cost || 0)
+    } : d);
+    store.deal_groups = (store.deal_groups || []).filter(g => g.deal_id !== id);
+    store.deal_groups = [...(store.deal_groups || []), ...groups.map(g => ({ ...g, deal_id: id, id: nextSeqId("deal_groups") }))];
+    persistStore();
+    return delay({ success: true });
+  },
+  deleteDeal: (id) => {
+    store.deals = (store.deals || []).filter(d => d.id !== id);
+    store.deal_groups = (store.deal_groups || []).filter(g => g.deal_id !== id);
+    persistStore();
+    return delay({ success: true });
+  },
+
   exportData: () => {
     return delay({
       __version: 1,
@@ -834,12 +1151,180 @@ const memoryApi = {
     return delay({ success: true });
   },
 
+  createJournal: (data) => {
+    const { lines, ...header } = data;
+    const headerId = nextSeqId('journal_headers');
+    const newHeader = { ...header, id: headerId, entry_number: 'JV-' + Date.now(), status: header.status || 'Draft', created_at: new Date().toISOString() };
+    store.journal_headers = [...(store.journal_headers || []), newHeader];
+    
+    lines.forEach(line => {
+      const newLine = { ...line, id: nextSeqId('journal_entries'), header_id: headerId, created_at: new Date().toISOString() };
+      store.journal_entries = [...(store.journal_entries || []), newLine];
+    });
+    persistStore();
+    return delay({ success: true, id: headerId });
+  },
+  updateJournal: (id, data) => {
+    const { lines, ...header } = data;
+    store.journal_headers = (store.journal_headers || []).map(h => h.id === id ? { ...h, ...header } : h);
+    store.journal_entries = (store.journal_entries || []).filter(e => e.header_id !== id);
+    lines.forEach(line => {
+      const newLine = { ...line, id: nextSeqId('journal_entries'), header_id: id, created_at: new Date().toISOString() };
+      store.journal_entries = [...(store.journal_entries || []), newLine];
+    });
+    persistStore();
+    return delay({ success: true });
+  },
+  reverseJournal: (id, created_by) => {
+    const header = (store.journal_headers || []).find(h => h.id === id);
+    if (!header) throw new Error("Header not found");
+    const revHeaderId = nextSeqId('journal_headers');
+    const newHeader = { ...header, id: revHeaderId, entry_number: 'JV-REV-' + Date.now(), description: 'Reversal of ' + header.entry_number, status: 'Posted', created_by };
+    store.journal_headers = [...(store.journal_headers || []), newHeader];
+    
+    const lines = (store.journal_entries || []).filter(e => e.header_id === id);
+    lines.forEach(line => {
+      const newLine = { ...line, id: nextSeqId('journal_entries'), header_id: revHeaderId, debit: line.credit, credit: line.debit, description: 'Reversal' };
+      store.journal_entries = [...(store.journal_entries || []), newLine];
+    });
+    
+    store.journal_headers = (store.journal_headers || []).map(h => h.id === id ? { ...h, status: 'Reversed' } : h);
+    persistStore();
+    return delay({ success: true });
+  },
+
+  listAccounts: () => delay((store.accounts || []).filter(a => a.is_active !== 0)),
+  createAccount: (data) => {
+    const newAcc = { ...data, id: nextSeqId('accounts'), is_active: 1, is_system: 0 };
+    store.accounts = [...(store.accounts || []), newAcc];
+    persistStore();
+    return delay(newAcc);
+  },
+  updateAccount: (id, data) => {
+    store.accounts = (store.accounts || []).map(a => a.id === id ? { ...a, ...data } : a);
+    persistStore();
+    return delay({ success: true });
+  },
+  deleteAccount: (id) => {
+    store.accounts = (store.accounts || []).map(a => a.id === id ? { ...a, is_active: 0 } : a);
+    persistStore();
+    return delay({ success: true });
+  },
+  settleDriverCash: (driverName, amount, meta) => {
+    store.employees = (store.employees || []).map(e => {
+      if (e.name === driverName && e.role === 'Driver') {
+        return { ...e, cash_balance: Math.max(0, (e.cash_balance || 0) - amount) };
+      }
+      return e;
+    });
+    persistStore();
+    return delay({ success: true });
+  },
+
   getVersion: () => delay("1.0.0 (production ready)"),
   getDeviceName: () => delay("Browser-Dev"),
   getPrinters: () => delay([]),
 };
 
-const rawApi = typeof window !== "undefined" && window.api ? { ...memoryApi, ...window.api } : memoryApi;
+// Network RPC wrapper for mobile/browser usage
+const networkInvoke = async (channel, ...args) => {
+  try {
+    const res = await fetch(`http://${window.location.hostname}:5724/api/rpc/${channel}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ args })
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Network Error');
+    }
+    const json = await res.json();
+    return json.result;
+  } catch (e) {
+    console.error('RPC Call Failed:', channel, e);
+    throw e;
+  }
+};
+
+const buildNetworkApi = () => {
+  return {
+  isElectron: true,
+  setAppIcon: (dataUrl) => networkInvoke("set-app-icon", dataUrl),
+  list: (table, opts) => networkInvoke("db:list", table, opts),
+  get: (table, id) => networkInvoke("db:get", table, id),
+  create: (table, data, meta) => networkInvoke("db:create", table, data, meta),
+  update: (table, id, data, meta) => networkInvoke("db:update", table, id, data, meta),
+  remove: (table, id, meta) => networkInvoke("db:delete", table, id, meta),
+  loginWithPin: (pin) => networkInvoke("auth:loginWithPin", pin),
+  loginWithPassword: (usernameOrEmail, password) => networkInvoke("auth:loginWithPassword", usernameOrEmail, password),
+  adminOverride: (ownerPassword) => networkInvoke("auth:adminOverride", ownerPassword),
+  resetUserPin: (userId, newPin, ownerPassword) => networkInvoke("auth:resetPin", userId, newPin, ownerPassword),
+  resetUserPassword: (userId, newPassword, ownerPassword) => networkInvoke("auth:resetPassword", userId, newPassword, ownerPassword),
+  getPermissions: () => networkInvoke("permissions:getAll"),
+  savePermissions: (rows, meta) => networkInvoke("permissions:save", rows, meta),
+  resetDefaultPermissions: (meta) => networkInvoke("permissions:resetDefaults", meta),
+  listRoles: () => networkInvoke("roles:list"),
+  createRole: (name, meta) => networkInvoke("roles:create", name, meta),
+  deleteRole: (name, meta) => networkInvoke("roles:delete", name, meta),
+  getSetting: (key) => networkInvoke("settings:get", key),
+  setSetting: (key, value) => networkInvoke("settings:set", key, value),
+  markAllNotificationsRead: () => networkInvoke("notifications:markAllRead"),
+  markNotificationRead: (id) => networkInvoke("notifications:markRead", id),
+  clearNotifications: () => networkInvoke("notifications:clear"),
+  createOrderWithItems: (order, items, meta) => networkInvoke("orders:createWithItems", order, items, meta),
+  updateOrderWithItems: (orderId, orderUpdates, items, meta) => networkInvoke("orders:createWithItems", { ...orderUpdates, id: orderId }, items, meta),
+  updateOrderStatus: (id, status, meta) => networkInvoke("orders:updateStatus", id, status, meta),
+  updateKitchenStatus: (id, status, meta) => networkInvoke("orders:updateKitchenStatus", id, status, meta),
+  processPurchaseOrder: (po, items, meta) => networkInvoke("purchases:processOrder", po, items, meta),
+  returnPurchaseOrder: (poId, returnData, meta) => networkInvoke("purchases:returnOrder", poId, returnData, meta),
+  deletePurchaseOrder: (poId, meta) => networkInvoke("purchases:deleteOrder", poId, meta),
+  paySupplier: (supplierId, data, meta) => networkInvoke("suppliers:paySupplier", supplierId, data, meta),
+  addInventoryTransaction: (tx) => networkInvoke("inventory:addTransaction", tx),
+  submitPhysicalCount: (count) => networkInvoke("inventory:submitPhysicalCount", count),
+  addExpiryBatch: (batch) => networkInvoke("inventory:addExpiryBatch", batch),
+  listAccounts: () => networkInvoke("accounts:list"),
+  createAccount: (data) => networkInvoke("accounts:create", data),
+  updateAccount: (id, data) => networkInvoke("accounts:update", id, data),
+  deleteAccount: (id) => networkInvoke("accounts:delete", id),
+  settleDriverCash: (driverName, amount, meta) => networkInvoke("accounting:settleDriverCash", driverName, amount, meta),
+  postJournal: (entries) => networkInvoke("journal:post", entries),
+  listJournal: (filters) => networkInvoke("journal:list", filters),
+  getAccountLedger: (accountCode, startDate, endDate) => networkInvoke("journal:getAccountLedger", accountCode, startDate, endDate),
+  createJournal: (data) => networkInvoke("journal:create", data),
+  updateJournal: (id, data) => networkInvoke("journal:update", id, data),
+  reverseJournal: (id, created_by) => networkInvoke("journal:reverse", id, created_by),
+  listBankAccounts: () => networkInvoke("bank:list"),
+  createBankAccount: (data) => networkInvoke("bank:create", data),
+  updateBankAccount: (id, data) => networkInvoke("bank:update", id, data),
+  transferFunds: (data) => networkInvoke("bank:transfer", data),
+  recordCustomerPayment: (data) => networkInvoke("customer:recordPayment", data),
+  openShift: (data) => networkInvoke("shift:open", data),
+  getCurrentShift: (cashierId) => networkInvoke("shift:getCurrent", cashierId),
+  closeShift: (shiftId, data) => networkInvoke("shift:close", shiftId, data),
+  listShifts: (filters) => networkInvoke("shift:list", filters),
+  getProfitLoss: (startDate, endDate) => networkInvoke("accounting:profitLoss", startDate, endDate),
+  getBalanceSheet: (asOfDate) => networkInvoke("accounting:balanceSheet", asOfDate),
+  getTrialBalance: (startDate, endDate) => networkInvoke("accounting:trialBalance", startDate, endDate),
+  getCashFlow: (startDate, endDate) => networkInvoke("accounting:cashFlow", startDate, endDate),
+  processReturn: (orderId, payload, meta) => networkInvoke("sales:processReturn", orderId, payload, meta),
+  getDashboardSummary: () => networkInvoke("dashboard:summary"),
+  getStoreVersion: () => networkInvoke("app:getStoreVersion"),
+  getVersion: () => networkInvoke("app:getVersion"),
+  getDeviceName: () => networkInvoke("app:getDeviceName"),
+  getPrinters: () => networkInvoke("system:getPrinters"),
+  clearData: () => networkInvoke("system:clearData"),
+  exportData: () => networkInvoke("system:exportData"),
+  importData: (data) => networkInvoke("system:importData", data),
+  printHtml: (html, printerName) => networkInvoke("system:printHtml", html, printerName),
+  listDeals: () => networkInvoke("deals:list"),
+};
+};
+
+const rawApi = typeof window !== "undefined" && window.api 
+  ? { ...memoryApi, ...window.api } 
+  : (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.DEV
+      ? memoryApi
+      : { ...memoryApi, ...buildNetworkApi() });
 
 const listeners = [];
 const notify = (table) => {
@@ -858,10 +1343,11 @@ api.onInvalidate = (cb) => {
 
 const mutators = [
   "create", "update", "remove", "clearTable", "removeMultiple", 
-  "processPurchaseOrder", "processReturn", "createOrderWithItems", "returnPurchaseOrder",
+  "paySupplier", "processPurchaseOrder", "createDeal", "updateDeal", "deleteDeal", "processReturn", "createOrderWithItems", "returnPurchaseOrder",
   "updateOrderWithItems", "updateOrderStatus", "updateKitchenStatus", "markNotificationRead", 
   "markAllNotificationsRead", "clearNotifications", "setSetting", "deleteSetting", "saveInventory",
-  "openShift", "closeShift"
+  "openShift", "closeShift", "createAccount", "updateAccount", "deleteAccount",
+  "createJournal", "updateJournal", "reverseJournal"
 ];
 
 mutators.forEach(method => {
@@ -877,7 +1363,7 @@ mutators.forEach(method => {
 
 api.clearData = async () => {
   const emptyStore = {
-    users: [{ id: 1, name: "System Admin", username: "admin", password: "password", role: "admin", status: "active", branch: "Main Branch", pin: "1234" }],
+    users: [{ id: 1, name: "System Admin", username: "admin", password: "password", role: "Owner", status: "active", branch: "Main Branch", pin: "1234" }],
     accounts: [{ id: 1, name: "Cash in Hand", type: "Asset", balance: 0 }],
     sequences: {}
   };

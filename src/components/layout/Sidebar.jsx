@@ -28,6 +28,7 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Gift,
 } from "lucide-react";
 
 const groups = [
@@ -49,6 +50,7 @@ const groups = [
     label: "Catalog",
     items: [
       { to: "/menu", label: "Menu Management", icon: UtensilsCrossed },
+        { to: "/deals", label: "Deals & Combos", icon: Gift },
     ],
   },
   {

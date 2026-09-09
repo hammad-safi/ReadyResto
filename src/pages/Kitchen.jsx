@@ -24,11 +24,12 @@ const STATION_STYLES = {
   Bar:     { pill: "bg-blue-500/10   text-blue-600   border border-blue-500/20",   active: "bg-blue-500   text-white border border-blue-600   shadow-sm" },
   Dessert: { pill: "bg-pink-500/10   text-pink-600   border border-pink-500/20",   active: "bg-pink-500   text-white border border-pink-600   shadow-sm" },
   Fry:     { pill: "bg-amber-500/10  text-amber-600  border border-amber-500/20",  active: "bg-amber-500  text-white border border-amber-600  shadow-sm" },
+  Deals:   { pill: "bg-ink-900/10    text-ink-800    border border-ink-900/20",    active: "bg-ink-900    text-white border border-black      shadow-sm" },
 };
 
 const KITCHEN_NEXT   = { new: "preparing", preparing: "ready", ready: "served", served: "completed" };
 const KITCHEN_LABELS = { new: "Start Preparing", preparing: "Mark Ready", ready: "Mark Served", served: "Complete & Clear" };
-const STATIONS = ["All", "Grill", "Bar", "Dessert", "Fry"];
+const STATIONS = ["All", "Grill", "Bar", "Dessert", "Fry", "Deals"];
 
 const playKitchenChime = () => {
   try {
@@ -92,6 +93,7 @@ export default function Kitchen() {
   const [selectedTickets, setSelectedTickets] = useState([]);
   const prevNewOrderIdsRef = useRef(new Set());
   const prevOrdersRef = useRef([]);
+  const isFirstLoadRef = useRef(true);
 
   const load = async () => {
     try {
@@ -106,7 +108,7 @@ export default function Kitchen() {
       let playNew = false;
       let playCancel = false;
 
-      if (soundEnabled) {
+      if (soundEnabled && !isFirstLoadRef.current) {
         // 1. Detect truly new orders by comparing ID sets
         for (const id of currentNewIds) {
           if (!prevNewOrderIdsRef.current.has(id)) {
@@ -133,6 +135,7 @@ export default function Kitchen() {
           playKitchenChime();
         }
       }
+      isFirstLoadRef.current = false;
       
       prevNewOrderIdsRef.current = currentNewIds;
       prevOrdersRef.current = fetchedOrders || [];
@@ -196,12 +199,23 @@ export default function Kitchen() {
           String(o.table_id || "").includes(search) ||
           String(o.customer || "").toLowerCase().includes(search) ||
           String(o.waiter || "").toLowerCase().includes(search) ||
-          itemsFor(o.id).some((it) => it.name.toLowerCase().includes(search));
+          itemsFor(o.id).some((it) => 
+            it.name.toLowerCase().includes(search) || 
+            (it.sub_items && it.sub_items.some(sub => sub.name && sub.name.toLowerCase().includes(search)))
+          );
         if (!hasMatch) return false;
       }
       if (stationFilter !== "All") {
-        const hasStationItems = itemsFor(o.id).some((it) => it.station === stationFilter);
-        if (!hasStationItems) return false;
+        if (stationFilter === "Deals") {
+          const hasDeal = itemsFor(o.id).some(it => it.is_deal === 1);
+          if (!hasDeal) return false;
+        } else {
+          const hasStationItems = itemsFor(o.id).some((it) => 
+            it.station === stationFilter || 
+            (it.sub_items && it.sub_items.some(sub => sub.station === stationFilter))
+          );
+          if (!hasStationItems) return false;
+        }
       }
       return true;
     });
@@ -282,7 +296,7 @@ export default function Kitchen() {
                 const next = !soundEnabled;
                 setSoundEnabled(next);
                 window.localStorage.setItem("kitchen_soundEnabled", JSON.stringify(next));
-                if (next) playKitchenChime();
+                // Sound will play on actual new orders, no preview chime on toggle
               }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all shadow-sm ${
                 soundEnabled
@@ -343,23 +357,7 @@ export default function Kitchen() {
           <Printer size={15} /> Print KOT ({selectedTickets.length})
         </button>
 
-        <button
-          onClick={async () => {
-            const ordersToPrint = filteredOrders.filter(o => selectedTickets.includes(o.id)).map(o => ({
-              ...o,
-              items: itemsFor(o.id)
-            }));
-            const { printQRLabels } = await import("../utils/export");
-            for (const order of ordersToPrint) {
-              await printQRLabels(order, order.items, profile);
-            }
-            setSelectedTickets([]);
-          }}
-          disabled={selectedTickets.length === 0}
-          className="px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-paprika-50 border border-paprika-200 text-paprika-700 hover:bg-paprika-100 shadow-sm"
-        >
-          <Printer size={15} /> Print Labels ({selectedTickets.length})
-        </button>
+
       </div>
 
       {/* Main Kanban Grid */}
@@ -435,43 +433,63 @@ export default function Kitchen() {
                       {/* Items List */}
                       <ul className="space-y-2 mb-3">
                         {visibleItems.length > 0 ? (
-                          visibleItems.map((it) => {
-                            const sc = STATION_STYLES[it.station];
-                            return (
-                              <li key={it.id} className="rounded-lg border border-canvas-200 bg-canvas-50 overflow-hidden">
-                                <div className="flex items-start gap-2.5 p-2">
-                                  <div className="h-9 w-9 shrink-0 rounded-md bg-canvas-100 border border-canvas-200 flex items-center justify-center text-lg shadow-2xs">
-                                    {it.image?.startsWith?.("data:") ? (
-                                      <img src={it.image} className="h-full w-full object-cover rounded-md" alt="" />
-                                    ) : (
-                                      <span>{it.image || "🍴"}</span>
-                                    )}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-start justify-between gap-1">
-                                      <span className="text-xs font-bold text-ink-900 leading-snug block truncate">{it.name}</span>
-                                      <span className="shrink-0 font-mono font-extrabold text-xs text-canvas-50 bg-ink-900 px-2 py-0.5 rounded-md">
-                                        ×{it.qty}
-                                      </span>
+                          (() => {
+                            const mainItems = visibleItems.filter(it => !it.parent_id);
+                            return mainItems.map((it) => {
+                              const sc = STATION_STYLES[it.station];
+                              const subItems = it.sub_items || [];
+                              
+                              return (
+                                <li key={it.id} className="rounded-lg border border-canvas-200 bg-canvas-50 overflow-hidden">
+                                  <div className="flex items-start gap-2.5 p-2">
+                                    <div className="h-9 w-9 shrink-0 rounded-md bg-canvas-100 border border-canvas-200 flex items-center justify-center text-lg shadow-2xs">
+                                      {it.image?.startsWith?.("data:") ? (
+                                        <img src={it.image} className="h-full w-full object-cover rounded-md" alt="" />
+                                      ) : (
+                                        <span>{it.image || (it.is_deal ? "🎁" : "🍴")}</span>
+                                      )}
                                     </div>
-                                    {/* Station Badge — linked from Menu Management */}
-                                    {it.station && sc && (
-                                      <span className={`inline-block text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded mt-1 ${sc.pill}`}>
-                                        {it.station}
-                                      </span>
-                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-start justify-between gap-1">
+                                        <span className="text-xs font-bold text-ink-900 leading-snug block truncate">{it.name}</span>
+                                        <span className="shrink-0 font-mono font-extrabold text-xs text-canvas-50 bg-ink-900 px-2 py-0.5 rounded-md">
+                                          ×{it.qty}
+                                        </span>
+                                      </div>
+                                      {/* Sub-items for deals */}
+                                      {it.is_deal === 1 && subItems.length > 0 && (
+                                        <details className="mt-1.5 group">
+                                          <summary className="text-[10px] font-bold text-paprika-600 cursor-pointer list-none flex items-center gap-1 select-none w-max">
+                                            View Deal Contents <span className="text-[8px] group-open:rotate-180 transition-transform">▼</span>
+                                          </summary>
+                                          <div className="mt-1.5 space-y-1 border-l-2 border-canvas-200 pl-1.5">
+                                            {subItems.map(sub => (
+                                              <div key={sub.id} className="text-[11px] text-ink-600 flex items-center">
+                                                <span className="font-mono text-ink-400 mr-1.5">×{sub.qty}</span> {sub.name} 
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </details>
+                                      )}
+                                      {/* Station Badge */}
+                                      {it.station && sc && (
+                                        <span className={`inline-block text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded mt-1 ${sc.pill}`}>
+                                          {it.station}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                                {/* Special Instructions */}
-                                {it.notes && (
-                                  <div className="text-[11px] font-semibold text-amber-900 bg-amber-50/90 border-t border-amber-200 px-2 py-1.5 flex items-start gap-1">
-                                    <span>⚠️</span>
-                                    <span className="flex-1">{it.notes}</span>
-                                  </div>
-                                )}
-                              </li>
-                            );
-                          })
+                                  {/* Special Instructions */}
+                                  {it.notes && (
+                                    <div className="text-[11px] font-semibold text-amber-900 bg-amber-50/90 border-t border-amber-200 px-2 py-1.5 flex items-start gap-1">
+                                      <span>⚠️</span>
+                                      <span className="flex-1">{it.notes}</span>
+                                    </div>
+                                  )}
+                                </li>
+                              );
+                            });
+                          })()
                         ) : orderItems.length > 0 ? (
                           <li className="text-xs text-ink-400 italic px-1 py-1">
                             No items for station "{stationFilter}" in this ticket

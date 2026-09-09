@@ -1,3 +1,4 @@
+import GlobalSearch from "./GlobalSearch";
 import { useEffect, useState, useRef } from "react";
 import {
   Menu, Search, Bell, Lock, Building2, CalendarDays, Archive,
@@ -86,13 +87,7 @@ export default function Topbar({ onMenuClick }) {
         <Menu size={20} />
       </button>
 
-      <div className="hidden sm:flex items-center flex-1 max-w-md relative">
-        <Search size={16} className="absolute left-3 text-ink-500" />
-        <input
-          placeholder="Search orders, items, customers…"
-          className="w-full bg-canvas-100 rounded-lg pl-9 pr-3 py-2 text-sm placeholder:text-ink-500/60 outline-none focus:ring-2 focus:ring-paprika-500/30"
-        />
-      </div>
+      <GlobalSearch />
 
       <div className="flex-1 sm:hidden" />
 

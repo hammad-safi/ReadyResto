@@ -51,6 +51,24 @@ export function DataCacheProvider({ children }) {
     }
   }, [invalidate, invalidateAll]);
 
+  // Background polling for live sync
+  useEffect(() => {
+    if (!api.getStoreVersion) return;
+    let localVersion = 0;
+    const interval = setInterval(async () => {
+      try {
+        const globalVersion = await api.getStoreVersion();
+        if (localVersion !== 0 && globalVersion > localVersion) {
+          invalidateAll();
+        }
+        localVersion = globalVersion;
+      } catch (e) {
+        // Ignore network errors during polling
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [invalidateAll]);
+
   return (
     <DataCacheContext.Provider value={{ getData, invalidate, invalidateAll, cacheTick }}>
       {children}

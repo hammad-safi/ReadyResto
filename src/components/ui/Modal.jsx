@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 
-export default function Modal({ open, onClose, title, children, footer, width = "max-w-lg", onSubmit }) {
+export default function Modal({ open = true, onClose, title, children, footer, width = "max-w-lg", onSubmit }) {
   if (!open) return null;
   const Container = onSubmit ? "form" : "div";
   return (
