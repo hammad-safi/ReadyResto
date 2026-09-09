@@ -1,0 +1,13 @@
+node_modules
+dist
+build_out
+release
+*.db
+*.log
+CRASH*
+out.log
+electron
+*.cjs
+*.py
+tests
+*.md

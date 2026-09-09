@@ -1229,7 +1229,8 @@ const memoryApi = {
 // Network RPC wrapper for mobile/browser usage
 const networkInvoke = async (channel, ...args) => {
   try {
-    const res = await fetch(`http://${window.location.hostname}:5724/api/rpc/${channel}`, {
+    const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:5724`;
+    const res = await fetch(`${apiBaseUrl}/api/rpc/${channel}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ args })
@@ -1320,11 +1321,9 @@ const buildNetworkApi = () => {
 };
 };
 
-const rawApi = typeof window !== "undefined" && window.api 
-  ? { ...memoryApi, ...window.api } 
-  : (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.DEV
-      ? memoryApi
-      : { ...memoryApi, ...buildNetworkApi() });
+const rawApi = typeof window !== "undefined" && window.api
+  ? { ...memoryApi, ...window.api }
+  : (import.meta.env.VITE_API_URL ? { ...memoryApi, ...buildNetworkApi() } : memoryApi);
 
 const listeners = [];
 const notify = (table) => {

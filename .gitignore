@@ -12,3 +12,5 @@ release/
 release/
 *.mp3
 
+.vercel
+.env*
